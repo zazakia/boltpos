@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatPrice } from '@/utils/currency';
 import { Plus, Edit2, Trash2 } from 'lucide-react-native';
 
 type Category = {
@@ -187,7 +188,7 @@ export default function ProductsScreen() {
                   )}
                 </View>
                 <View style={styles.productDetails}>
-                  <Text style={styles.productPrice}>${product.price.toFixed(2)}</Text>
+                  <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
                   <Text style={styles.productStock}>Stock: {product.stock}</Text>
                 </View>
               </View>

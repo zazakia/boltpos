@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { formatPrice } from '@/utils/currency';
 
 type Product = {
   id: string;

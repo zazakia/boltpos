@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatPrice } from '@/utils/currency';
 
 type Order = {
   id: string;
@@ -161,7 +162,7 @@ export default function OrdersScreen() {
                     </View>
                   </View>
                 </View>
-                <Text style={styles.orderTotal}>${order.total.toFixed(2)}</Text>
+                <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
               </View>
 
               <View style={styles.orderItems}>
@@ -170,7 +171,7 @@ export default function OrdersScreen() {
                     <Text style={styles.orderItemName}>
                       {item.quantity}x {item.products.name}
                     </Text>
-                    <Text style={styles.orderItemPrice}>${item.subtotal.toFixed(2)}</Text>
+                    <Text style={styles.orderItemPrice}>{formatPrice(item.subtotal)}</Text>
                   </View>
                 ))}
               </View>
@@ -180,12 +181,12 @@ export default function OrdersScreen() {
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
                     <Text style={styles.summaryValue}>
-                      ${(order.total - order.tax).toFixed(2)}
+                      {formatPrice(order.total - order.tax)}
                     </Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Tax</Text>
-                    <Text style={styles.summaryValue}>${order.tax.toFixed(2)}</Text>
+                    <Text style={styles.summaryValue}>{formatPrice(order.tax)}</Text>
                   </View>
                 </View>
               </View>

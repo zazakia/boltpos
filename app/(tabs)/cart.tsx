@@ -11,26 +11,16 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, CreditCard, Banknote, Smartphone, Trash2 } from 'lucide-react-native';
-
-type CartItem = {
-  product: {
-    id: string;
-    name: string;
-    price: number;
-  };
-  quantity: number;
-};
+import { formatPrice } from '@/utils/currency';
+import { ArrowLeft, CreditCard, Banknote, Smartphone, Plus, Minus, Trash2 } from 'lucide-react-native';
 
 export default function CartScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { cart, removeFromCart, updateQuantity, clearCart, getCartTotal } = useCart();
   const [processingPayment, setProcessingPayment] = useState(false);
-  
-  // Get cart from global state or context (for now we'll simulate)
-  // In a real app, this would come from a global state management solution
-  const cart: CartItem[] = [];
   
   const getSubtotal = () => {
     return cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
@@ -42,16 +32,6 @@ export default function CartScreen() {
 
   const getTotal = () => {
     return getSubtotal() + getTax();
-  };
-
-  const removeFromCart = (productId: string) => {
-    // In a real implementation, this would update global state
-    console.log('Remove item from cart:', productId);
-  };
-
-  const updateQuantity = (productId: string, delta: number) => {
-    // In a real implementation, this would update global state
-    console.log('Update quantity:', productId, delta);
   };
 
   const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile') => {
@@ -88,8 +68,8 @@ export default function CartScreen() {
 
       if (itemsError) throw itemsError;
 
-      // Clear cart in global state
-      console.log('Cart cleared');
+      // Clear cart
+      clearCart();
       
       Alert.alert('Success', 'Order placed successfully!', [
         { text: 'OK', onPress: () => router.replace('/(tabs)') }
@@ -134,20 +114,20 @@ export default function CartScreen() {
                   <View style={styles.cartItemInfo}>
                     <Text style={styles.cartItemName}>{item.product.name}</Text>
                     <Text style={styles.cartItemPrice}>
-                      ${item.product.price.toFixed(2)}
+                      {formatPrice(item.product.price)}
                     </Text>
                   </View>
                   <View style={styles.cartItemActions}>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.product.id, -1)}>
-                      <Text style={styles.quantityButtonText}>-</Text>
+                      onPress={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                      <Minus size={16} color="#6B7280" />
                     </TouchableOpacity>
                     <Text style={styles.quantityText}>{item.quantity}</Text>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.product.id, 1)}>
-                      <Text style={styles.quantityButtonText}>+</Text>
+                      onPress={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                      <Plus size={16} color="#6B7280" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.removeButton}
@@ -162,15 +142,15 @@ export default function CartScreen() {
             <View style={styles.cartSummary}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>${getSubtotal().toFixed(2)}</Text>
+                <Text style={styles.summaryValue}>{formatPrice(getSubtotal())}</Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Tax (10%)</Text>
-                <Text style={styles.summaryValue}>${getTax().toFixed(2)}</Text>
+                <Text style={styles.summaryValue}>{formatPrice(getTax())}</Text>
               </View>
               <View style={[styles.summaryRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total</Text>
-                <Text style={styles.totalValue}>${getTotal().toFixed(2)}</Text>
+                <Text style={styles.totalValue}>{formatPrice(getTotal())}</Text>
               </View>
             </View>
           </>
@@ -306,11 +286,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  quantityButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
   },
   quantityText: {
     fontSize: 16,
