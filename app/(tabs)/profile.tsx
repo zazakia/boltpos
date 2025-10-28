@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Mail, Shield, LogOut } from 'lucide-react-native';
+import { User, Mail, Shield, LogOut, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -13,8 +13,27 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
-    router.replace('/(auth)/login');
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              // Use navigate instead of replace to ensure proper stack management
+              router.navigate('/(auth)/login');
+            } catch (error: any) {
+              console.error('Sign out error:', error);
+              Alert.alert('Error', error.message || 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -29,11 +48,17 @@ export default function ProfileScreen() {
 
       if (error) throw error;
       setEditing(false);
-    } catch (error) {
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error: any) {
       console.error('Error updating profile:', error);
+      Alert.alert('Error', error.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
+  };
+
+  const navigateToUsers = () => {
+    router.push('/(tabs)/users');
   };
 
   return (
@@ -123,6 +148,17 @@ export default function ProfileScreen() {
             )}
           </View>
         </View>
+
+        {/* Admin Actions */}
+        {profile?.role === 'admin' && (
+          <View style={styles.adminSection}>
+            <Text style={styles.adminTitle}>Admin Tools</Text>
+            <TouchableOpacity style={styles.adminButton} onPress={navigateToUsers}>
+              <Users size={20} color="#3B82F6" />
+              <Text style={styles.adminButtonText}>Manage Users</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <LogOut size={20} color="#EF4444" />
@@ -273,6 +309,33 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  adminSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: 16,
+  },
+  adminTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 16,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  adminButtonText: {
+    color: '#3B82F6',
+    fontSize: 16,
+    fontWeight: '600',
   },
   signOutButton: {
     flexDirection: 'row',

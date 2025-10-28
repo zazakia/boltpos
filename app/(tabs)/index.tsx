@@ -34,7 +34,7 @@ type Product = {
 export default function POSScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { addToCart, getCartCount } = useCart();
+  const { addToCart, getCartCount, getCartTotal } = useCart();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -114,6 +114,18 @@ export default function POSScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Cart Summary Bar */}
+      {getCartCount() > 0 && (
+        <View style={styles.cartSummaryBar}>
+          <Text style={styles.cartSummaryText}>
+            {getCartCount()} items in cart
+          </Text>
+          <Text style={styles.cartSummaryText}>
+            Total: {formatPrice(getCartTotal())}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.content}>
         <View style={styles.productsSection}>
@@ -280,6 +292,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  cartSummaryBar: {
+    backgroundColor: '#EFF6FF',
+    padding: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  cartSummaryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   content: {
     flex: 1,

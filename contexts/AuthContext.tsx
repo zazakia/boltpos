@@ -17,6 +17,7 @@ type AuthContextType = {
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  createAdminUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,8 +102,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear local state immediately after sign out
+      setSession(null);
+      setUser(null);
+      setProfile(null);
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
+  };
+
+  const createAdminUser = async () => {
+    const adminEmail = 'admin@boltpos.com';
+    const adminPassword = 'Admin123!';
+    const adminName = 'Admin User';
+
+    try {
+      // Check if admin user already exists
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', adminEmail)
+        .maybeSingle();
+
+      if (existingUser) {
+        // If admin exists, just sign in
+        await signIn(adminEmail, adminPassword);
+        return;
+      }
+
+      // Create admin user
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: adminEmail,
+        password: adminPassword,
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        // Create admin profile
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: data.user.id,
+          email: data.user.email!,
+          full_name: adminName,
+          role: 'admin',
+        });
+
+        if (profileError) throw profileError;
+
+        // Sign in as admin
+        await signIn(adminEmail, adminPassword);
+      }
+    } catch (error) {
+      console.error('Error creating admin user:', error);
+      throw error;
+    }
   };
 
   const value = {
@@ -113,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signIn,
     signOut,
+    createAdminUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

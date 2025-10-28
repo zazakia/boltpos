@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,11 +15,16 @@ import { formatPrice } from '@/utils/currency';
 
 type Order = {
   id: string;
+  user_id: string;
   total: number;
   tax: number;
   status: 'completed' | 'refunded' | 'cancelled';
   payment_method: 'cash' | 'card' | 'mobile';
   created_at: string;
+  profiles?: {
+    full_name: string;
+    email: string;
+  };
 };
 
 type OrderWithItems = Order & {
@@ -34,22 +40,26 @@ type OrderWithItems = Order & {
 };
 
 export default function OrdersScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<OrderWithItems | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
 
   useEffect(() => {
-    if (user) {
-      loadOrders();
+    loadOrders();
+    if (isAdmin) {
+      // loadUsers();
     }
   }, [user]);
 
   const loadOrders = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('orders')
-        .select(
-          `
+        .select(`
           *,
           order_items (
             id,
@@ -59,11 +69,20 @@ export default function OrdersScreen() {
             products (
               name
             )
+          ),
+          profiles (
+            full_name,
+            email
           )
-        `
-        )
-        .eq('user_id', user?.id)
+        `)
         .order('created_at', { ascending: false });
+
+      // For non-admin users, only show their own orders
+      if (!isAdmin) {
+        query = query.eq('user_id', user?.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setOrders(data || []);
@@ -111,6 +130,21 @@ export default function OrdersScreen() {
     });
   };
 
+  const updateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      loadOrders();
+      setModalVisible(false);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -130,15 +164,24 @@ export default function OrdersScreen() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No orders yet</Text>
             <Text style={styles.emptyStateSubtext}>
-              Your completed orders will appear here
+              {isAdmin ? 'No orders found' : 'Your completed orders will appear here'}
             </Text>
           </View>
         ) : (
           orders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
+            <TouchableOpacity
+              key={order.id}
+              style={styles.orderCard}
+              onPress={() => {
+                setSelectedOrder(order);
+                setModalVisible(true);
+              }}>
               <View style={styles.orderHeader}>
                 <View style={styles.orderHeaderLeft}>
                   <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
+                  {isAdmin && order.profiles && (
+                    <Text style={styles.userName}>{order.profiles.full_name}</Text>
+                  )}
                   <View style={styles.orderMetadata}>
                     <View
                       style={[
@@ -164,36 +207,148 @@ export default function OrdersScreen() {
                 </View>
                 <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
               </View>
-
-              <View style={styles.orderItems}>
-                {order.order_items.map((item) => (
-                  <View key={item.id} style={styles.orderItem}>
-                    <Text style={styles.orderItemName}>
-                      {item.quantity}x {item.products.name}
-                    </Text>
-                    <Text style={styles.orderItemPrice}>{formatPrice(item.subtotal)}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.orderFooter}>
-                <View style={styles.orderSummary}>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Subtotal</Text>
-                    <Text style={styles.summaryValue}>
-                      {formatPrice(order.total - order.tax)}
-                    </Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Tax</Text>
-                    <Text style={styles.summaryValue}>{formatPrice(order.tax)}</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
+
+      {/* Order Detail Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {selectedOrder && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Order Details</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                    <Text style={styles.closeButton}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.modalBody}>
+                  <View style={styles.orderInfo}>
+                    <Text style={styles.orderId}>Order #{selectedOrder.id.substring(0, 8)}</Text>
+                    <Text style={styles.orderDateDetail}>{formatDate(selectedOrder.created_at)}</Text>
+                    {isAdmin && selectedOrder.profiles && (
+                      <Text style={styles.userInfo}>
+                        User: {selectedOrder.profiles.full_name} ({selectedOrder.profiles.email})
+                      </Text>
+                    )}
+                    <View style={styles.statusRow}>
+                      <Text style={styles.statusLabel}>Status:</Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: getStatusColor(selectedOrder.status) + '20' },
+                        ]}>
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(selectedOrder.status) },
+                          ]}>
+                          {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.paymentRow}>
+                      <Text style={styles.paymentLabel}>Payment:</Text>
+                      <Text style={styles.paymentValue}>
+                        {getPaymentMethodIcon(selectedOrder.payment_method)}{' '}
+                        {selectedOrder.payment_method.charAt(0).toUpperCase() +
+                          selectedOrder.payment_method.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.itemsSection}>
+                    <Text style={styles.sectionTitle}>Items</Text>
+                    {selectedOrder.order_items.map((item) => (
+                      <View key={item.id} style={styles.orderItem}>
+                        <Text style={styles.orderItemName}>
+                          {item.quantity}x {item.products.name}
+                        </Text>
+                        <Text style={styles.orderItemPrice}>{formatPrice(item.subtotal)}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.summarySection}>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Subtotal</Text>
+                      <Text style={styles.summaryValue}>
+                        {formatPrice(selectedOrder.total - selectedOrder.tax)}
+                      </Text>
+                    </View>
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Tax</Text>
+                      <Text style={styles.summaryValue}>{formatPrice(selectedOrder.tax)}</Text>
+                    </View>
+                    <View style={[styles.summaryRow, styles.totalRow]}>
+                      <Text style={styles.totalLabel}>Total</Text>
+                      <Text style={styles.totalValue}>{formatPrice(selectedOrder.total)}</Text>
+                    </View>
+                  </View>
+
+                  {/* Admin Actions */}
+                  {isAdmin && (
+                    <View style={styles.actionsSection}>
+                      <Text style={styles.sectionTitle}>Admin Actions</Text>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            selectedOrder.status === 'completed' && styles.actionButtonActive,
+                          ]}
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'completed')}>
+                          <Text
+                            style={[
+                              styles.actionButtonText,
+                              selectedOrder.status === 'completed' && styles.actionButtonTextActive,
+                            ]}>
+                            Mark Completed
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            selectedOrder.status === 'refunded' && styles.actionButtonActive,
+                          ]}
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'refunded')}>
+                          <Text
+                            style={[
+                              styles.actionButtonText,
+                              selectedOrder.status === 'refunded' && styles.actionButtonTextActive,
+                            ]}>
+                            Mark Refunded
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.actionButton,
+                            selectedOrder.status === 'cancelled' && styles.actionButtonActive,
+                          ]}
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'cancelled')}>
+                          <Text
+                            style={[
+                              styles.actionButtonText,
+                              selectedOrder.status === 'cancelled' && styles.actionButtonTextActive,
+                            ]}>
+                            Mark Cancelled
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -261,6 +416,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+    marginBottom: 4,
+  },
+  userName: {
+    fontSize: 12,
+    color: '#6B7280',
     marginBottom: 8,
   },
   orderMetadata: {
@@ -292,13 +452,97 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3B82F6',
   },
-  orderItems: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  closeButton: {
+    fontSize: 24,
+    color: '#6B7280',
+  },
+  modalBody: {
+    padding: 16,
+  },
+  orderInfo: {
+    marginBottom: 24,
+  },
+  orderId: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  orderDateDetail: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  userInfo: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginRight: 8,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paymentLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginRight: 8,
+  },
+  paymentValue: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  itemsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
     marginBottom: 12,
   },
   orderItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   orderItemName: {
     fontSize: 14,
@@ -310,25 +554,64 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  orderFooter: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  orderSummary: {
-    gap: 4,
+  summarySection: {
+    marginBottom: 24,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 8,
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9CA3AF',
   },
   summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  totalRow: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  totalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  actionsSection: {
+    marginBottom: 16,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  actionButton: {
+    flex: 1,
+    minWidth: 100,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  actionButtonActive: {
+    backgroundColor: '#3B82F6',
+  },
+  actionButtonText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  actionButtonTextActive: {
+    color: '#FFFFFF',
   },
 });

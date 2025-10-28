@@ -19,7 +19,7 @@ import { ArrowLeft, CreditCard, Banknote, Smartphone, Plus, Minus, Trash2 } from
 export default function CartScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { cart, removeFromCart, updateQuantity, clearCart, getCartTotal } = useCart();
+  const { cart, removeFromCart, updateQuantity, clearCart, getCartTotal, getCartCount } = useCart();
   const [processingPayment, setProcessingPayment] = useState(false);
   
   const getSubtotal = () => {
@@ -92,7 +92,14 @@ export default function CartScreen() {
           <ArrowLeft size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cart</Text>
-        <View style={{ width: 24 }} /> {/* Spacer for alignment */}
+        <View style={styles.cartSummaryHeader}>
+          <Text style={styles.cartSummaryText}>
+            {getCartCount()} items
+          </Text>
+          <Text style={styles.cartSummaryText}>
+            Total: {formatPrice(getCartTotal())}
+          </Text>
+        </View>
       </View>
 
       <ScrollView style={styles.content}>
@@ -222,6 +229,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
+  },
+  cartSummaryHeader: {
+    alignItems: 'flex-end',
+  },
+  cartSummaryText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   content: {
     flex: 1,

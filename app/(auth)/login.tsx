@@ -17,7 +17,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn } = useAuth();
+  const { signIn, createAdminUser } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
@@ -34,6 +34,20 @@ export default function Login() {
       router.replace('/(tabs)');
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminLogin = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      await createAdminUser();
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      setError(err.message || 'Failed to create admin user');
     } finally {
       setLoading(false);
     }
@@ -77,6 +91,17 @@ export default function Login() {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.buttonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.adminButton, loading && styles.buttonDisabled]}
+            onPress={handleAdminLogin}
+            disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.buttonText}>1-Click Admin Login</Text>
             )}
           </TouchableOpacity>
 
@@ -128,6 +153,13 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: '#3B82F6',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  adminButton: {
+    backgroundColor: '#10B981',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
