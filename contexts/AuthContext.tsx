@@ -122,40 +122,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const adminName = 'Admin User';
 
     try {
-      // Check if admin user already exists
-      const { data: existingUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', adminEmail)
-        .maybeSingle();
-
-      if (existingUser) {
-        // If admin exists, just sign in
+      // First, try to sign in (in case admin already exists)
+      try {
         await signIn(adminEmail, adminPassword);
         return;
+      } catch (signInError: any) {
+        // If sign in fails, check if it's because the user doesn't exist
+        if (signInError.message && signInError.message.includes('Invalid login credentials')) {
+          // User doesn't exist, continue with creation
+        } else {
+          // Some other error, re-throw it
+          throw signInError;
+        }
       }
 
-      // Create admin user
+      // Try to create the admin user
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: adminEmail,
         password: adminPassword,
       });
 
-      if (signUpError) throw signUpError;
+      // If there's an error and it's not "User already registered", throw it
+      if (signUpError && !signUpError.message.includes('User already registered')) {
+        throw signUpError;
+      }
 
-      if (data.user) {
-        // Create admin profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: data.user.id,
-          email: data.user.email!,
-          full_name: adminName,
-          role: 'admin',
-        });
+      // If user already exists or was just created, try to sign in
+      await signIn(adminEmail, adminPassword);
 
-        if (profileError) throw profileError;
+      // Check if profile exists, create if not
+      if (data?.user) {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', data.user.id)
+          .maybeSingle();
 
-        // Sign in as admin
-        await signIn(adminEmail, adminPassword);
+        if (!existingProfile) {
+          // Create admin profile
+          const { error: profileError } = await supabase.from('profiles').insert({
+            id: data.user.id,
+            email: data.user.email!,
+            full_name: adminName,
+            role: 'admin',
+          });
+
+          if (profileError) throw profileError;
+        }
       }
     } catch (error) {
       console.error('Error creating admin user:', error);
