@@ -9,6 +9,7 @@ import {
   TextInput,
   Modal,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -34,7 +35,7 @@ type Product = {
 export default function POSScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { addToCart, getCartCount, getCartTotal } = useCart();
+  const { addToCart, getCartCount, getCartTotal, cart } = useCart();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -67,7 +68,25 @@ export default function POSScreen() {
     : products;
 
   const handleAddToCart = (product: Product) => {
-    addToCart(product);
+    // Check if product has sufficient stock
+    if (product.stock <= 0) {
+      Alert.alert('Insufficient Stock', 'This product is out of stock.');
+      return;
+    }
+
+    // Check if adding to cart would exceed available stock
+    const cartItem = cart.find(item => item.product.id === product.id);
+    const currentQuantity = cartItem ? cartItem.quantity : 0;
+    
+    if (currentQuantity + 1 > product.stock) {
+      Alert.alert('Insufficient Stock', `Only ${product.stock} items available.`);
+      return;
+    }
+
+    const success = addToCart(product);
+    if (!success) {
+      Alert.alert('Error', 'Failed to add item to cart. Please try again.');
+    }
   };
 
   const getSubtotal = () => {
@@ -159,26 +178,62 @@ export default function POSScreen() {
 
           <ScrollView style={styles.productsGrid}>
             <View style={styles.productsRow}>
-              {filteredProducts.map((product) => (
-                <TouchableOpacity
-                  key={product.id}
-                  style={styles.productCard}
-                  onPress={() => handleAddToCart(product)}>
-                  <Text style={styles.productName}>{product.name}</Text>
-                  <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
-                  <Text style={styles.productStock}>Stock: {product.stock}</Text>
-                  <TouchableOpacity 
-                    style={styles.addToCartButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleAddToCart(product);
-                    }}
-                  >
-                    <Plus size={16} color="#FFFFFF" />
-                    <Text style={styles.addToCartText}>Add</Text>
+              {filteredProducts.map((product) => {
+                const cartItem = cart.find(item => item.product.id === product.id);
+                const currentQuantity = cartItem ? cartItem.quantity : 0;
+                const isOutOfStock = product.stock === 0;
+                const isLowStock = product.stock > 0 && product.stock <= 5;
+                const isMaxQuantityReached = currentQuantity >= product.stock;
+                
+                return (
+                  <TouchableOpacity
+                    key={product.id}
+                    style={[
+                      styles.productCard,
+                      isOutOfStock && styles.productCardOutOfStock,
+                      isLowStock && styles.productCardLowStock
+                    ]}
+                    onPress={() => !isOutOfStock && handleAddToCart(product)}
+                    disabled={isOutOfStock}>
+                    <Text style={styles.productName}>{product.name}</Text>
+                    <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
+                    <Text style={[
+                      styles.productStock,
+                      isOutOfStock && styles.productStockOutOfStock,
+                      isLowStock && styles.productStockLowStock
+                    ]}>
+                      Stock: {product.stock}
+                      {currentQuantity > 0 && ` (${currentQuantity} in cart)`}
+                    </Text>
+                    {isOutOfStock && (
+                      <View style={styles.outOfStockBadge}>
+                        <Text style={styles.outOfStockText}>Out of Stock</Text>
+                      </View>
+                    )}
+                    {isLowStock && !isOutOfStock && (
+                      <View style={styles.lowStockBadge}>
+                        <Text style={styles.lowStockText}>Low Stock</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={[
+                        styles.addToCartButton,
+                        isOutOfStock && styles.addToCartButtonDisabled,
+                        isMaxQuantityReached && styles.addToCartButtonDisabled
+                      ]}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleAddToCart(product);
+                      }}
+                      disabled={isOutOfStock || isMaxQuantityReached}>
+                      <Plus size={16} color="#FFFFFF" />
+                      <Text style={styles.addToCartText}>
+                        {isOutOfStock ? 'Out of Stock' : isMaxQuantityReached ? 'Max Reached' : 'Add'}
+                      </Text>
+                    </TouchableOpacity>
                   </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
+                );
+              })}
             </View>
           </ScrollView>
         </View>
@@ -472,5 +527,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  productCardOutOfStock: {
+    opacity: 0.6,
+    backgroundColor: '#F9FAFB',
+  },
+  productCardLowStock: {
+    borderColor: '#F59E0B',
+    borderWidth: 2,
+  },
+  productStockOutOfStock: {
+    color: '#EF4444',
+    fontWeight: '600',
+  },
+  productStockLowStock: {
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
+  outOfStockBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  outOfStockText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  lowStockBadge: {
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  lowStockText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  addToCartButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+    opacity: 0.7,
   },
 });

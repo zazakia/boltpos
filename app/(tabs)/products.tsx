@@ -10,11 +10,14 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
+  Switch,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPrice } from '@/utils/currency';
-import { Plus, Edit2, Trash2 } from 'lucide-react-native';
+import { Plus, Edit2, Trash2, Search, Check, X, Upload } from 'lucide-react-native';
 
 type Category = {
   id: string;
@@ -29,7 +32,20 @@ type Product = {
   category_id: string | null;
   stock: number;
   active: boolean;
+  image_url: string | null;
   categories?: Category | null;
+};
+
+// Type for the API response with categories as an array
+type ProductWithCategories = {
+  id: string;
+  name: string;
+  price: number;
+  category_id: string | null;
+  stock: number;
+  active: boolean;
+  image_url: string | null;
+  categories?: Category[] | null;
 };
 
 export default function ProductsScreen() {
@@ -51,6 +67,26 @@ export default function ProductsScreen() {
     name: '',
     color: '#3B82F6',
   });
+  
+  // New state for search, filters, and selection
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  
+  // Color presets for categories
+  const colorPresets = [
+    '#3B82F6', // blue
+    '#EF4444', // red
+    '#10B981', // green
+    '#F59E0B', // yellow
+    '#8B5CF6', // purple
+    '#EC4899', // pink
+    '#14B8A6', // teal
+    '#F97316', // orange
+  ];
 
   const isAdmin = profile?.role === 'admin';
 
@@ -63,19 +99,58 @@ export default function ProductsScreen() {
       const [productsData, categoriesData] = await Promise.all([
         supabase
           .from('products')
-          .select('*, categories(*)')
+          .select('id,name,price,stock,active,category_id,image_url,categories!category_id(*)')
           .order('name'),
         supabase.from('categories').select('*').order('name'),
       ]);
 
-      if (productsData.data) setProducts(productsData.data);
+      if (productsData.error) {
+        console.error('Products error:', productsData.error);
+        Alert.alert('Error', 'Failed to load products. Please try again.');
+        return;
+      }
+
+      if (categoriesData.error) {
+        console.error('Categories error:', categoriesData.error);
+        Alert.alert('Error', 'Failed to load categories. Please try again.');
+        return;
+      }
+
+      if (productsData.data) {
+        // Transform the data to match our Product type
+        const transformedProducts: Product[] = productsData.data.map((item: ProductWithCategories) => ({
+          ...item,
+          categories: Array.isArray(item.categories) && item.categories.length > 0 
+            ? item.categories[0] 
+            : (item.categories && typeof item.categories === 'object' ? item.categories : null),
+        }));
+        setProducts(transformedProducts);
+      }
       if (categoriesData.data) setCategories(categoriesData.data);
     } catch (error) {
       console.error('Error loading data:', error);
+      Alert.alert('Error', 'An unexpected error occurred while loading data.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Compute filtered products based on search and active status
+  const filteredProducts = products.filter((product) => {
+    // Filter by active status
+    if (!isAdmin && !product.active) return false;
+    if (isAdmin && !showInactive && !product.active) return false;
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const nameMatch = product.name.toLowerCase().includes(query);
+      const categoryMatch = product.categories?.name.toLowerCase().includes(query);
+      return nameMatch || categoryMatch;
+    }
+    
+    return true;
+  });
 
   const openAddProductModal = () => {
     setEditingProduct(null);
@@ -85,6 +160,7 @@ export default function ProductsScreen() {
       category_id: categories[0]?.id || '',
       stock: '0',
     });
+    setSelectedImageUri(null);
     setProductModalVisible(true);
   };
 
@@ -96,6 +172,7 @@ export default function ProductsScreen() {
       category_id: product.category_id || '',
       stock: product.stock.toString(),
     });
+    setSelectedImageUri(product.image_url);
     setProductModalVisible(true);
   };
 
@@ -117,6 +194,80 @@ export default function ProductsScreen() {
     setCategoryModalVisible(true);
   };
 
+  const handlePickImage = async () => {
+    try {
+      // Request permissions first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant photo library access to upload product images.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const uploadProductImage = async (imageUri: string, productId: string): Promise<string | null> => {
+    try {
+      setUploadingImage(true);
+      
+      // Create a unique file name
+      const fileExt = imageUri.split('.').pop() || 'jpg';
+      const fileName = `${productId}-${Date.now()}.${fileExt}`;
+      
+      // Convert URI to blob
+      const response = await fetch(imageUri);
+      if (!response.ok) {
+        throw new Error('Failed to fetch image');
+      }
+      const blob = await response.blob();
+      
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, blob, {
+          contentType: `image/${fileExt}`,
+          upsert: true,
+        });
+      
+      if (error) {
+        console.error('Supabase storage error:', error);
+        Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
+        return null;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+      
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please check your connection.');
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSaveProduct = async () => {
     if (!formData.name || !formData.price) {
       Alert.alert('Error', 'Please fill in all required fields');
@@ -124,13 +275,37 @@ export default function ProductsScreen() {
     }
 
     try {
-      const productData = {
+      let imageUrl = selectedImageUri;
+      
+      // For new products, upload image if selected
+      if (!editingProduct && selectedImageUri && !selectedImageUri.startsWith('https://')) {
+        const tempId = `temp-${Date.now()}`;
+        imageUrl = await uploadProductImage(selectedImageUri, tempId);
+      }
+      
+      // For existing products, upload new image if changed
+      if (editingProduct && selectedImageUri &&
+          selectedImageUri !== editingProduct.image_url &&
+          !selectedImageUri.startsWith('https://')) {
+        imageUrl = await uploadProductImage(selectedImageUri, editingProduct.id);
+      }
+
+      const productData: any = {
         name: formData.name,
         price: parseFloat(formData.price),
         category_id: formData.category_id || null,
         stock: parseInt(formData.stock) || 0,
-        active: true,
       };
+
+      // Only set active: true for new products
+      if (!editingProduct) {
+        productData.active = true;
+      }
+      
+      // Include image_url if we have one
+      if (imageUrl) {
+        productData.image_url = imageUrl;
+      }
 
       if (editingProduct) {
         const { error } = await supabase
@@ -146,6 +321,7 @@ export default function ProductsScreen() {
       }
 
       setProductModalVisible(false);
+      setSelectedImageUri(null);
       loadData();
     } catch (error: any) {
       console.error('Error saving product:', error);
@@ -242,6 +418,88 @@ export default function ProductsScreen() {
     );
   };
 
+  // Bulk selection handlers
+  const toggleProductSelection = (productId: string) => {
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
+    } else {
+      newSelected.add(productId);
+    }
+    setSelectedProducts(newSelected);
+  };
+
+  const selectAllProducts = () => {
+    if (selectedProducts.size === filteredProducts.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(filteredProducts.map(p => p.id)));
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedProducts.size === 0) return;
+    
+    Alert.alert(
+      'Activate Products',
+      `Are you sure you want to activate ${selectedProducts.size} product(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Activate',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('products')
+                .update({ active: true })
+                .in('id', Array.from(selectedProducts));
+
+              if (error) throw error;
+              setSelectedProducts(new Set());
+              setSelectionMode(false);
+              loadData();
+            } catch (error: any) {
+              console.error('Error activating products:', error);
+              Alert.alert('Error', error.message || 'Failed to activate products');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleBulkDeactivate = async () => {
+    if (selectedProducts.size === 0) return;
+    
+    Alert.alert(
+      'Deactivate Products',
+      `Are you sure you want to deactivate ${selectedProducts.size} product(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Deactivate',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('products')
+                .update({ active: false })
+                .in('id', Array.from(selectedProducts));
+
+              if (error) throw error;
+              setSelectedProducts(new Set());
+              setSelectionMode(false);
+              loadData();
+            } catch (error: any) {
+              console.error('Error deactivating products:', error);
+              Alert.alert('Error', error.message || 'Failed to deactivate products');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -263,6 +521,78 @@ export default function ProductsScreen() {
             <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Product</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* Search and Filters */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchBar}>
+          <Search size={20} color="#6B7280" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search products..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+        {isAdmin && (
+          <View style={styles.filterRow}>
+            <View style={styles.toggleContainer}>
+              <Text style={styles.toggleLabel}>Show Inactive</Text>
+              <Switch
+                value={showInactive}
+                onValueChange={setShowInactive}
+                trackColor={{ false: '#E5E7EB', true: '#DBEAFE' }}
+                thumbColor={showInactive ? '#3B82F6' : '#F3F4F6'}
+              />
+            </View>
+            <View style={styles.selectionControls}>
+              {!selectionMode ? (
+                <TouchableOpacity
+                  style={styles.selectionButton}
+                  onPress={() => {
+                    setSelectionMode(true);
+                    setSelectedProducts(new Set());
+                  }}>
+                  <Text style={styles.selectionButtonText}>Select</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.selectionActive}>
+                  <TouchableOpacity
+                    style={styles.selectionButton}
+                    onPress={() => {
+                      setSelectionMode(false);
+                      setSelectedProducts(new Set());
+                    }}>
+                    <X size={16} color="#EF4444" />
+                    <Text style={[styles.selectionButtonText, { color: '#EF4444' }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.selectionButton}
+                    onPress={selectAllProducts}>
+                    <Check size={16} color="#10B981" />
+                    <Text style={[styles.selectionButtonText, { color: '#10B981' }]}>
+                      {selectedProducts.size === filteredProducts.length ? 'Deselect All' : 'Select All'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        {selectionMode && selectedProducts.size > 0 && (
+          <View style={styles.bulkActions}>
+            <TouchableOpacity
+              style={[styles.bulkButton, styles.bulkActivate]}
+              onPress={handleBulkActivate}>
+              <Text style={styles.bulkButtonText}>Activate ({selectedProducts.size})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.bulkButton, styles.bulkDeactivate]}
+              onPress={handleBulkDeactivate}>
+              <Text style={styles.bulkButtonText}>Deactivate ({selectedProducts.size})</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -308,10 +638,12 @@ export default function ProductsScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Products</Text>
           </View>
-          {products.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No products yet</Text>
-              {isAdmin && (
+              <Text style={styles.emptyStateText}>
+                {searchQuery.trim() ? 'No products found' : 'No products yet'}
+              </Text>
+              {isAdmin && !searchQuery.trim() && (
                 <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
                   <Plus size={20} color="#FFFFFF" />
                   <Text style={styles.addButtonText}>Add Product</Text>
@@ -319,8 +651,21 @@ export default function ProductsScreen() {
               )}
             </View>
           ) : (
-            products.map((product) => (
+            filteredProducts.map((product) => (
               <View key={product.id} style={styles.productCard}>
+                {selectionMode && (
+                  <TouchableOpacity
+                    style={[
+                      styles.checkbox,
+                      selectedProducts.has(product.id) && styles.checkboxSelected,
+                    ]}
+                    onPress={() => toggleProductSelection(product.id)}>
+                    {selectedProducts.has(product.id) && (
+                      <Check size={14} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                )}
+                
                 <View style={styles.productInfo}>
                   <View style={styles.productMain}>
                     <Text style={styles.productName}>{product.name}</Text>
@@ -346,7 +691,20 @@ export default function ProductsScreen() {
                   </View>
                 </View>
 
-                {isAdmin && (
+                {product.image_url && (
+                  <Image
+                    source={{ uri: product.image_url }}
+                    style={styles.productImage}
+                  />
+                )}
+
+                {!product.active && (
+                  <View style={styles.inactiveBadge}>
+                    <Text style={styles.inactiveBadgeText}>Inactive</Text>
+                  </View>
+                )}
+
+                {isAdmin && !selectionMode && (
                   <View style={styles.productActions}>
                     <TouchableOpacity
                       style={styles.editButton}
@@ -428,6 +786,39 @@ export default function ProductsScreen() {
                 keyboardType="number-pad"
               />
 
+              {/* Image Picker Section */}
+              <View style={styles.imagePickerContainer}>
+                <Text style={styles.label}>Product Image</Text>
+                {selectedImageUri ? (
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    style={styles.imagePreview}
+                  />
+                ) : (
+                  <View style={[styles.imagePreview, { backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ color: '#6B7280', fontSize: 14 }}>No image selected</Text>
+                  </View>
+                )}
+                <View style={styles.imagePickerButtons}>
+                  <TouchableOpacity
+                    style={styles.imagePickerButton}
+                    onPress={handlePickImage}>
+                    <Upload size={16} color="#374151" />
+                    <Text style={styles.imagePickerButtonText}>
+                      {selectedImageUri ? 'Change Image' : 'Pick Image'}
+                    </Text>
+                  </TouchableOpacity>
+                  {selectedImageUri && (
+                    <TouchableOpacity
+                      style={styles.imagePickerButton}
+                      onPress={() => setSelectedImageUri(null)}>
+                      <X size={16} color="#EF4444" />
+                      <Text style={[styles.imagePickerButtonText, { color: '#EF4444' }]}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -435,7 +826,9 @@ export default function ProductsScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveButton} onPress={handleSaveProduct}>
-                  <Text style={styles.saveButtonText}>Save</Text>
+                  <Text style={styles.saveButtonText}>
+                    {uploadingImage ? 'Saving...' : 'Save'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -465,6 +858,22 @@ export default function ProductsScreen() {
               />
 
               <Text style={styles.label}>Color</Text>
+              <View style={styles.colorPresetsContainer}>
+                {colorPresets.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorPreset,
+                      categoryFormData.color === color && styles.colorPresetSelected,
+                      { backgroundColor: color },
+                    ]}
+                    onPress={() => setCategoryFormData({ ...categoryFormData, color })}>
+                    {categoryFormData.color === color && (
+                      <Check size={16} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
               <TextInput
                 style={styles.input}
                 value={categoryFormData.color}
@@ -746,5 +1155,168 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  searchSection: {
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#111827',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  selectionControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  selectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+  },
+  selectionActive: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  selectionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  bulkActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  bulkButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  bulkActivate: {
+    backgroundColor: '#D1FAE5',
+  },
+  bulkDeactivate: {
+    backgroundColor: '#FEE2E2',
+  },
+  bulkButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  productImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  inactiveBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  inactiveBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  colorPresetsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  colorPreset: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorPresetSelected: {
+    borderColor: '#111827',
+    borderWidth: 3,
+  },
+  imagePickerContainer: {
+    marginBottom: 16,
+  },
+  imagePickerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  imagePickerButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6',
+  },
+  imagePickerButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 8,
   },
 });

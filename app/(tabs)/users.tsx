@@ -13,13 +13,14 @@ import {
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Shield, Edit2, Key } from 'lucide-react-native';
+import { User, Shield, Edit2, Key, Power } from 'lucide-react-native';
 
 type UserProfile = {
   id: string;
   email: string;
   full_name: string | null;
   role: 'admin' | 'staff';
+  active: boolean;
   created_at: string;
 };
 
@@ -27,6 +28,7 @@ export default function UsersScreen() {
   const { profile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminCount, setAdminCount] = useState<number>(0);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
@@ -36,7 +38,7 @@ export default function UsersScreen() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
     userId: '',
-    password: '',
+    email: '',
   });
 
   const isAdmin = profile?.role === 'admin';
@@ -60,8 +62,13 @@ export default function UsersScreen() {
 
       if (error) throw error;
       setUsers(data || []);
+      
+      // Count active admins for validation
+      const activeAdmins = (data || []).filter(u => u.role === 'admin' && u.active).length;
+      setAdminCount(activeAdmins);
     } catch (error) {
       console.error('Error loading users:', error);
+      Alert.alert('Error', 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -76,16 +83,24 @@ export default function UsersScreen() {
     setModalVisible(true);
   };
 
-  const openPasswordModal = (userId: string) => {
+  const openPasswordModal = (userId: string, userEmail: string) => {
     setPasswordData({
       userId,
-      password: '',
+      email: userEmail,
     });
     setShowPasswordModal(true);
   };
 
   const handleSave = async () => {
     if (!editingUser) return;
+
+    // Validation: Prevent removing the last admin
+    if (editingUser.role === 'admin' && formData.role === 'staff') {
+      if (adminCount <= 1) {
+        Alert.alert('Cannot change role', 'At least one admin must remain in the system.');
+        return;
+      }
+    }
 
     try {
       const { error } = await supabase
@@ -106,20 +121,62 @@ export default function UsersScreen() {
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!passwordData.password) {
-      Alert.alert('Error', 'Please enter a password');
-      return;
+  const handleToggleUserActive = async (userId: string, currentActive: boolean, userRole: string) => {
+    // Validation: Prevent deactivating the last admin
+    if (currentActive === true && userRole === 'admin') {
+      if (adminCount <= 1) {
+        Alert.alert('Cannot deactivate', 'At least one admin must remain active in the system.');
+        return;
+      }
     }
 
+    Alert.alert(
+      currentActive ? 'Deactivate User' : 'Reactivate User',
+      `This user will ${currentActive ? 'no longer' : 'now be able to'} access the system.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('profiles')
+                .update({
+                  active: !currentActive,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', userId);
+
+              if (error) throw error;
+              
+              Alert.alert(
+                'Success',
+                `User ${currentActive ? 'deactivated' : 'reactivated'} successfully.`
+              );
+              loadUsers();
+            } catch (error: any) {
+              console.error('Error toggling user active status:', error);
+              Alert.alert('Error', error.message || 'Failed to update user status');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetPassword = async () => {
     try {
-      // Note: In a real app, you would use Supabase's admin API to reset passwords
-      // This is a simplified example
-      Alert.alert('Info', 'Password reset functionality would be implemented here');
+      const { error } = await supabase.auth.resetPasswordForEmail(passwordData.email, {
+        redirectTo: 'bolt-expo-nativewind://reset-password'
+      });
+
+      if (error) throw error;
+
+      Alert.alert('Success', 'Password reset email sent. The user will receive an email with instructions.');
       setShowPasswordModal(false);
     } catch (error: any) {
       console.error('Error resetting password:', error);
-      Alert.alert('Error', error.message || 'Failed to reset password');
+      Alert.alert('Error', error.message || 'Failed to send password reset email');
     }
   };
 
@@ -174,7 +231,7 @@ export default function UsersScreen() {
           users.map((user) => {
             const roleBadge = getRoleBadge(user.role);
             return (
-              <View key={user.id} style={styles.userCard}>
+              <View key={user.id} style={[styles.userCard, { opacity: user.active ? 1 : 0.6 }]}>
                 <View style={styles.userInfo}>
                   <View style={styles.avatar}>
                     <User size={24} color="#3B82F6" />
@@ -199,6 +256,24 @@ export default function UsersScreen() {
                         {roleBadge.text}
                       </Text>
                     </View>
+                    {!user.active && (
+                      <View
+                        style={[
+                          styles.roleBadge,
+                          {
+                            backgroundColor: '#FEE2E2',
+                            marginLeft: 8,
+                          },
+                        ]}>
+                        <Text
+                          style={[
+                            styles.roleText,
+                            { color: '#EF4444' },
+                          ]}>
+                          Inactive
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
 
@@ -210,8 +285,21 @@ export default function UsersScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.passwordButton}
-                    onPress={() => openPasswordModal(user.id)}>
+                    onPress={() => openPasswordModal(user.id, user.email)}>
                     <Key size={18} color="#8B5CF6" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.deactivateButton,
+                      {
+                        backgroundColor: user.active ? '#FEE2E2' : '#D1FAE5',
+                      },
+                    ]}
+                    onPress={() => handleToggleUserActive(user.id, user.active, user.role)}>
+                    <Power
+                      size={18}
+                      color={user.active ? '#EF4444' : '#10B981'}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -247,13 +335,16 @@ export default function UsersScreen() {
                   style={[
                     styles.roleOption,
                     formData.role === 'staff' && styles.roleOptionSelected,
+                    editingUser?.role === 'admin' && adminCount <= 1 && { opacity: 0.5 },
                   ]}
                   onPress={() => setFormData({ ...formData, role: 'staff' })}
+                  disabled={editingUser?.role === 'admin' && adminCount <= 1}
                 >
                   <Text
                     style={[
                       styles.roleOptionText,
                       formData.role === 'staff' && styles.roleOptionTextSelected,
+                      editingUser?.role === 'admin' && adminCount <= 1 && { color: '#9CA3AF' },
                     ]}
                   >
                     Staff
@@ -276,6 +367,12 @@ export default function UsersScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
+              
+              {editingUser?.role === 'admin' && adminCount <= 1 && (
+                <Text style={styles.warningText}>
+                  ⚠️ This is the last active admin. Role cannot be changed to Staff.
+                </Text>
+              )}
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -300,17 +397,21 @@ export default function UsersScreen() {
         onRequestClose={() => setShowPasswordModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Reset Password</Text>
+            <Text style={styles.modalTitle}>Send Password Reset Email</Text>
 
             <View style={styles.form}>
-              <Text style={styles.label}>New Password</Text>
+              <Text style={styles.label}>Email</Text>
               <TextInput
                 style={styles.input}
-                value={passwordData.password}
-                onChangeText={(text) => setPasswordData({ ...passwordData, password: text })}
-                placeholder="Enter new password"
-                secureTextEntry
+                value={passwordData.email}
+                editable={false}
+                placeholder="User email"
               />
+              <Text style={styles.infoText}>
+                A password reset email will be sent to the user's email address.
+                {'\n'}
+                The user will receive instructions to reset their password securely.
+              </Text>
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -319,7 +420,7 @@ export default function UsersScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveButton} onPress={handleResetPassword}>
-                  <Text style={styles.saveButtonText}>Reset Password</Text>
+                  <Text style={styles.saveButtonText}>Send Reset Email</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -541,5 +642,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  deactivateButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#EF4444',
+    marginTop: 8,
   },
 });

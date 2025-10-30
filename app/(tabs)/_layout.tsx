@@ -1,7 +1,39 @@
+import { useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 import { ShoppingCart, Package, Receipt, User, Users } from 'lucide-react-native';
 
 export default function TabLayout() {
+  const { session, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Add route protection to prevent direct access to tabs without authentication
+    if (!loading && !session) {
+      router.replace('/(auth)/login');
+    }
+  }, [session, loading, router]);
+
+  // Show loading indicator while checking authentication
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+
+  // Don't render tabs if not authenticated
+  if (!session) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -75,3 +107,12 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+});

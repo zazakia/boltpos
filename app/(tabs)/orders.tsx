@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Modal,
+  Alert,
 } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,8 @@ export default function OrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<OrderWithItems | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [updatingTarget, setUpdatingTarget] = useState<'completed' | 'refunded' | 'cancelled' | null>(null);
 
   const isAdmin = profile?.role === 'admin';
 
@@ -53,9 +56,14 @@ export default function OrdersScreen() {
     if (isAdmin) {
       // loadUsers();
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const loadOrders = async () => {
+    // For non-admin users, guard against undefined user.id
+    if (!isAdmin && !user?.id) {
+      return; // Exit without entering try/catch/finally
+    }
+    
     try {
       let query = supabase
         .from('orders')
@@ -79,7 +87,7 @@ export default function OrdersScreen() {
 
       // For non-admin users, only show their own orders
       if (!isAdmin) {
-        query = query.eq('user_id', user?.id);
+        query = query.eq('user_id', user!.id); // We know user exists because of the guard above
       }
 
       const { data, error } = await query;
@@ -88,6 +96,20 @@ export default function OrdersScreen() {
       setOrders(data || []);
     } catch (error) {
       console.error('Error loading orders:', error);
+      Alert.alert(
+        'Error Loading Orders',
+        'Failed to load orders. Please try again.',
+        [
+          {
+            text: 'Retry',
+            onPress: () => loadOrders(),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -130,7 +152,9 @@ export default function OrdersScreen() {
     });
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+  // Helper function to perform the actual status update
+  const performStatusUpdate = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+    setUpdatingTarget(newStatus);
     try {
       const { error } = await supabase
         .from('orders')
@@ -138,11 +162,61 @@ export default function OrdersScreen() {
         .eq('id', orderId);
 
       if (error) throw error;
-      loadOrders();
+      
+      // Refresh orders and close modal immediately
+      await loadOrders();
       setModalVisible(false);
+      
+      // Show non-blocking success message
+      Alert.alert('Success', 'Order status updated successfully');
     } catch (error) {
       console.error('Error updating order status:', error);
+      Alert.alert(
+        'Update Failed',
+        `Failed to update order status. Please try again.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [
+          {
+            text: 'Retry',
+            onPress: () => performStatusUpdate(orderId, newStatus),
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } finally {
+      setUpdatingTarget(null);
     }
+  };
+
+  const updateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+    // Get current order to display in confirmation
+    const currentOrder = orders.find(order => order.id === orderId);
+    const currentStatus = currentOrder?.status || 'unknown';
+    
+    // Customize confirmation message based on status
+    let confirmMessage = `Change order status from '${currentStatus}' to '${newStatus}'?`;
+    if (newStatus === 'refunded') {
+      confirmMessage += '\n\nThis will mark the order as refunded. This action should be done after processing the refund.';
+    } else if (newStatus === 'cancelled') {
+      confirmMessage += '\n\nThis will cancel the order. This action cannot be easily undone.';
+    }
+
+    Alert.alert(
+      'Confirm Status Change',
+      confirmMessage,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Confirm',
+          onPress: () => performStatusUpdate(orderId, newStatus),
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -302,42 +376,57 @@ export default function OrdersScreen() {
                           style={[
                             styles.actionButton,
                             selectedOrder.status === 'completed' && styles.actionButtonActive,
+                            selectedOrder.status === 'completed' && styles.actionButtonDisabled,
+                            updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'completed')}>
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'completed')}
+                          disabled={selectedOrder.status === 'completed' || updatingTarget !== null}>
                           <Text
                             style={[
                               styles.actionButtonText,
                               selectedOrder.status === 'completed' && styles.actionButtonTextActive,
+                              selectedOrder.status === 'completed' && styles.actionButtonTextDisabled,
+                              updatingTarget && styles.actionButtonTextDisabled,
                             ]}>
-                            Mark Completed
+                            {updatingTarget === 'completed' ? 'Updating...' : 'Mark Completed'}
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[
                             styles.actionButton,
                             selectedOrder.status === 'refunded' && styles.actionButtonActive,
+                            selectedOrder.status === 'refunded' && styles.actionButtonDisabled,
+                            updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'refunded')}>
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'refunded')}
+                          disabled={selectedOrder.status === 'refunded' || updatingTarget !== null}>
                           <Text
                             style={[
                               styles.actionButtonText,
                               selectedOrder.status === 'refunded' && styles.actionButtonTextActive,
+                              selectedOrder.status === 'refunded' && styles.actionButtonTextDisabled,
+                              updatingTarget && styles.actionButtonTextDisabled,
                             ]}>
-                            Mark Refunded
+                            {updatingTarget === 'refunded' ? 'Updating...' : 'Mark Refunded'}
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[
                             styles.actionButton,
                             selectedOrder.status === 'cancelled' && styles.actionButtonActive,
+                            selectedOrder.status === 'cancelled' && styles.actionButtonDisabled,
+                            updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'cancelled')}>
+                          onPress={() => updateOrderStatus(selectedOrder.id, 'cancelled')}
+                          disabled={selectedOrder.status === 'cancelled' || updatingTarget !== null}>
                           <Text
                             style={[
                               styles.actionButtonText,
                               selectedOrder.status === 'cancelled' && styles.actionButtonTextActive,
+                              selectedOrder.status === 'cancelled' && styles.actionButtonTextDisabled,
+                              updatingTarget && styles.actionButtonTextDisabled,
                             ]}>
-                            Mark Cancelled
+                            {updatingTarget === 'cancelled' ? 'Updating...' : 'Mark Cancelled'}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -613,5 +702,12 @@ const styles = StyleSheet.create({
   },
   actionButtonTextActive: {
     color: '#FFFFFF',
+  },
+  actionButtonDisabled: {
+    backgroundColor: '#E5E7EB',
+    opacity: 0.6,
+  },
+  actionButtonTextDisabled: {
+    color: '#9CA3AF',
   },
 });

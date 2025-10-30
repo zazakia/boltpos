@@ -5,14 +5,23 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+// Log environment variable status for debugging
+console.log('Supabase: URL exists:', !!supabaseUrl);
+console.log('Supabase: Anon key exists:', !!supabaseAnonKey);
+console.log('Supabase: URL value:', supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined');
+
 // Validate that we have the required configuration
 if (!supabaseUrl) {
+  console.error('Supabase: Missing SUPABASE_URL environment variable');
   throw new Error('Missing SUPABASE_URL environment variable');
 }
 
 if (!supabaseAnonKey) {
+  console.error('Supabase: Missing SUPABASE_ANON_KEY environment variable');
   throw new Error('Missing SUPABASE_ANON_KEY environment variable');
 }
+
+console.log('Supabase: Creating Supabase client');
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -21,6 +30,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+console.log('Supabase: Client created successfully');
 
 export type Database = {
   public: {
@@ -31,6 +42,7 @@ export type Database = {
           email: string;
           full_name: string | null;
           role: 'admin' | 'staff';
+          active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -39,6 +51,7 @@ export type Database = {
           email: string;
           full_name?: string | null;
           role?: 'admin' | 'staff';
+          active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -47,6 +60,7 @@ export type Database = {
           email?: string;
           full_name?: string | null;
           role?: 'admin' | 'staff';
+          active?: boolean;
           created_at?: string;
           updated_at?: string;
         };

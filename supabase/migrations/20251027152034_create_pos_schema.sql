@@ -17,6 +17,20 @@
 --    - Order items snapshot prices for historical accuracy
 --    - Categories have colors for Square-style UI
 
+-- Create security helper function for admin checks
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE profiles.id = auth.uid()
+    AND profiles.role = 'admin'
+  );
+$$;
+
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS profiles (
   id uuid PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
@@ -34,11 +48,22 @@ CREATE POLICY "Users can view own profile"
   TO authenticated
   USING (auth.uid() = id);
 
+CREATE POLICY "Admins can view all profiles"
+  ON profiles FOR SELECT
+  TO authenticated
+  USING (is_admin());
+
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   TO authenticated
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Admins can update any profile"
+  ON profiles FOR UPDATE
+  TO authenticated
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Users can insert own profile"
   ON profiles FOR INSERT
@@ -63,42 +88,18 @@ CREATE POLICY "Anyone can view categories"
 CREATE POLICY "Admins can insert categories"
   ON categories FOR INSERT
   TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Admins can update categories"
   ON categories FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Admins can delete categories"
   ON categories FOR DELETE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  USING (is_admin());
 
 -- Create products table
 CREATE TABLE IF NOT EXISTS products (
@@ -120,45 +121,26 @@ CREATE POLICY "Anyone can view active products"
   TO authenticated
   USING (active = true);
 
+CREATE POLICY "Admins can view all products"
+  ON products FOR SELECT
+  TO authenticated
+  USING (is_admin());
+
 CREATE POLICY "Admins can insert products"
   ON products FOR INSERT
   TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Admins can update products"
   ON products FOR UPDATE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Admins can delete products"
   ON products FOR DELETE
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role = 'admin'
-    )
-  );
+  USING (is_admin());
 
 -- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
@@ -178,6 +160,11 @@ CREATE POLICY "Users can view own orders"
   TO authenticated
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Admins can view all orders"
+  ON orders FOR SELECT
+  TO authenticated
+  USING (is_admin());
+
 CREATE POLICY "Users can create orders"
   ON orders FOR INSERT
   TO authenticated
@@ -188,6 +175,12 @@ CREATE POLICY "Users can update own orders"
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can update any order"
+  ON orders FOR UPDATE
+  TO authenticated
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 -- Create order_items table
 CREATE TABLE IF NOT EXISTS order_items (
@@ -223,8 +216,44 @@ CREATE POLICY "Users can create order items"
       AND orders.user_id = auth.uid()
     )
   );
-
--- Insert default categories
+  
+  CREATE POLICY "Admins can view all order items"
+    ON order_items FOR SELECT
+    TO authenticated
+    USING (is_admin());
+  
+  -- Create trigger function to prevent sensitive field updates on orders
+  CREATE OR REPLACE FUNCTION prevent_sensitive_order_updates()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  AS $$
+  BEGIN
+    -- Check if sensitive fields are being updated by non-superuser
+    IF (
+      TG_OP = 'UPDATE' AND
+      (
+        OLD.user_id IS DISTINCT FROM NEW.user_id OR
+        OLD.total IS DISTINCT FROM NEW.total OR
+        OLD.tax IS DISTINCT FROM NEW.tax OR
+        OLD.payment_method IS DISTINCT FROM NEW.payment_method
+      ) AND
+      NOT pg_has_role(session_user, 'postgres', 'MEMBER')
+    ) THEN
+      RAISE EXCEPTION 'Cannot update sensitive order fields (user_id, total, tax, payment_method) without proper privileges';
+    END IF;
+    
+    RETURN NEW;
+  END;
+  $$;
+  
+  -- Create trigger to enforce sensitive field protection
+  CREATE TRIGGER orders_sensitive_fields_protection
+    BEFORE UPDATE ON orders
+    FOR EACH ROW
+    EXECUTE FUNCTION prevent_sensitive_order_updates();
+  
+  -- Insert default categories
 INSERT INTO categories (name, color) VALUES
   ('Food', '#10B981'),
   ('Drinks', '#3B82F6'),

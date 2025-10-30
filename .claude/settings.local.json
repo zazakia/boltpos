@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npm run typecheck:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run dev)",
+      "Bash(set:*)",
+      "Bash(expo start)",
+      "Bash(npx expo start:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

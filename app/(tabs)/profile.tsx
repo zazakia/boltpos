@@ -1,16 +1,19 @@
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
 import { User, Mail, Shield, LogOut, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const { user, profile, signOut } = useAuth();
+  const { clearCart } = useCart();
   const router = useRouter();
   const [fullName, setFullName] = useState(profile?.full_name || '');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -23,12 +26,20 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Clear cart before signing out
+              clearCart();
+              
+              // Set loading state
+              setSigningOut(true);
+              
               await signOut();
-              // Use navigate instead of replace to ensure proper stack management
-              router.navigate('/(auth)/login');
+              // Explicitly navigate to login to ensure proper navigation stack
+              router.replace('/(auth)/login');
             } catch (error: any) {
               console.error('Sign out error:', error);
               Alert.alert('Error', error.message || 'Failed to sign out. Please try again.');
+              // Reset loading state on error
+              setSigningOut(false);
             }
           },
         },
@@ -142,7 +153,11 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+              <TouchableOpacity
+                style={[styles.editButton, signingOut && styles.buttonDisabled]}
+                onPress={() => setEditing(true)}
+                disabled={signingOut}
+              >
                 <Text style={styles.editButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             )}
@@ -153,16 +168,30 @@ export default function ProfileScreen() {
         {profile?.role === 'admin' && (
           <View style={styles.adminSection}>
             <Text style={styles.adminTitle}>Admin Tools</Text>
-            <TouchableOpacity style={styles.adminButton} onPress={navigateToUsers}>
+            <TouchableOpacity
+              style={[styles.adminButton, signingOut && styles.buttonDisabled]}
+              onPress={navigateToUsers}
+              disabled={signingOut}
+            >
               <Users size={20} color="#3B82F6" />
               <Text style={styles.adminButtonText}>Manage Users</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <LogOut size={20} color="#EF4444" />
-          <Text style={styles.signOutButtonText}>Sign Out</Text>
+        <TouchableOpacity
+          style={[styles.signOutButton, signingOut && styles.buttonDisabled]}
+          onPress={handleSignOut}
+          disabled={signingOut}
+        >
+          {signingOut ? (
+            <ActivityIndicator size="small" color="#EF4444" />
+          ) : (
+            <LogOut size={20} color="#EF4444" />
+          )}
+          <Text style={styles.signOutButtonText}>
+            {signingOut ? 'Signing Out...' : 'Sign Out'}
+          </Text>
         </TouchableOpacity>
 
         <View style={styles.footer}>

@@ -7,6 +7,7 @@ type Profile = {
   email: string;
   full_name: string | null;
   role: 'admin' | 'staff';
+  active: boolean;
 };
 
 type AuthContextType = {
@@ -29,23 +30,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthContext: Initializing authentication');
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('AuthContext: Initial session check:', session ? 'session found' : 'no session');
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        console.log('AuthContext: Loading profile for user:', session.user.id);
         loadProfile(session.user.id);
       } else {
+        console.log('AuthContext: No session found, setting loading to false');
         setLoading(false);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('AuthContext: Auth state changed:', _event, session ? 'session exists' : 'no session');
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          console.log('AuthContext: Loading profile for user after state change:', session.user.id);
           await loadProfile(session.user.id);
         } else {
+          console.log('AuthContext: No session after state change, clearing profile');
           setProfile(null);
           setLoading(false);
         }
@@ -57,17 +65,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadProfile = async (userId: string) => {
     try {
+      console.log('AuthContext: Fetching profile from Supabase for user:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('AuthContext: Supabase error loading profile:', error);
+        throw error;
+      }
+      console.log('AuthContext: Profile loaded successfully:', data ? 'profile found' : 'no profile');
       setProfile(data);
     } catch (error) {
-      console.error('Error loading profile:', error);
+      console.error('AuthContext: Error loading profile:', error);
     } finally {
+      console.log('AuthContext: Setting loading to false after profile load attempt');
       setLoading(false);
     }
   };
@@ -103,6 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      // Set loading to true to prevent race conditions during sign-out
+      setLoading(true);
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
@@ -110,8 +127,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setUser(null);
       setProfile(null);
+      
+      // Note: setLoading(false) will be handled by onAuthStateChange listener
+      // This ensures the loading state is properly managed throughout the sign-out flow
     } catch (error) {
       console.error('Sign out error:', error);
+      // Reset loading state on error
+      setLoading(false);
       throw error;
     }
   };

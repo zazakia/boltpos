@@ -1,0 +1,32 @@
+{
+  "bundleSize": {
+    "optimized": 4734,
+    "original": 106310,
+    "reduction": 101576,
+    "reductionPercentage": 95.54698523186906
+  },
+  "processingTime": {
+    "specific": 0.000349199999999999,
+    "pattern": 0.00041341000000000034,
+    "network": 0.00861106,
+    "mixed": 0.00044593000000000134,
+    "average": 0.0024549
+  },
+  "memoryUsage": {
+    "heapUsed": -150704,
+    "heapTotal": 0,
+    "external": 40,
+    "rss": -57344
+  },
+  "correctness": {
+    "passed": 16,
+    "total": 16,
+    "percentage": 100
+  },
+  "requirements": {
+    "req1_5": true,
+    "req3_1": true,
+    "req3_3": true,
+    "allMet": true
+  }
+}

@@ -29,9 +29,30 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ1dnRsc3RzY3FuaXpjeHB1eGVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NzU1MjgsImV4cCI6MjA3NzE1MTUyOH0.hWzjXEY2zQMmUwV6FN4yJT9Pg09JxdKvf9RAR19zl9I"
       }
     },
-    "plugins": ["expo-router", "expo-font", "expo-web-browser"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to let you upload product images.",
+          "cameraPermission": "The app needs access to your camera to let you take product photos."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "developer": {
+      "tool": "expo-cli",
+      "projectRoot": "."
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4a62df0e-b123-48e5-97d6-fe6b1445e33e"
+      }
     }
   }
 }

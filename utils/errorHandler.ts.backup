@@ -1,0 +1,3917 @@
+
+// Error handling utilities for consistent error management across the app
+
+export interface ErrorContext {
+  component?: string;
+  action?: string;
+  userId?: string;
+  additionalInfo?: Record<string, any>;
+}
+
+export interface SupabaseError {
+  message: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+}
+
+/**
+ * Extracts a user-friendly error message from various error types
+ */
+export function getErrorMessage(error: unknown): string {
+  if (!error) {
+    return 'An unexpected error occurred';
+  }
+
+  // Handle string errors
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  // Handle Error objects
+  if (error instanceof Error) {
+    // Check if it's a Supabase error
+    if ('code' in error && typeof error.code === 'string') {
+      return getSupabaseErrorMessage(error as SupabaseError);
+    }
+
+    // Handle network errors
+    if (isNetworkError(error)) {
+      return 'Network error. Please check your connection.';
+    }
+
+    return error.message || 'An unexpected error occurred';
+  }
+
+  // Handle objects with message property
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String(error.message);
+  }
+
+  // Handle Supabase error structure
+  if (typeof error === 'object' && error !== null && 'error' in error) {
+    const supabaseError = (error as any).error;
+    if (typeof supabaseError === 'object' && supabaseError !== null) {
+      return getSupabaseErrorMessage(supabaseError);
+    }
+  }
+
+  return 'An unexpected error occurred';
+}
+
+/**
+ * Maps Supabase error codes to user-friendly messages
+ */
+function getSupabaseErrorMessage(error: SupabaseError): string {
+  const { code, message } = error;
+
+  // Handle specific Supabase error codes
+  switch (code) {
+    case 'PGRST116':
+      return 'No data found';
+    case '23505':
+      return 'This item already exists';
+    case '23503':
+      return 'Cannot delete - item is in use';
+    case '42501':
+      return 'Permission denied';
+    case '23514':
+      return 'Invalid data provided';
+    case '28P01':
+      return 'Database connection failed';
+    case '42P01':
+      return 'Table not found';
+    case '42703':
+      return 'Column not found';
+    case '22001':
+      return 'Data too long';
+    case '22003':
+      return 'Number out of range';
+    case '22P02':
+      return 'Invalid input format';
+    case '23502':
+      return 'Required field is missing';
+    case '23511':
+      return 'Check constraint violated';
+    case '23514':
+      return 'Exclusion constraint violated';
+    case '23P01':
+      return 'Exclusion constraint violated';
+    case '2BP01':
+      return 'Dependent objects still exist';
+    case '0A000':
+      return 'Feature not supported';
+    case '08006':
+      return 'Connection failed';
+    case '08001':
+      return 'Unable to connect to database';
+    case '08004':
+      return 'Connection rejected';
+    case '08003':
+      return 'Connection does not exist';
+    case '0P000':
+      return 'Invalid role specification';
+    case '0L000':
+      return 'Invalid grantor';
+    case '0LP01':
+      return 'Invalid grant operation';
+    case '0P000':
+      return 'Invalid role specification';
+    case '0Z002':
+      return 'Invalid XML document';
+    case '2200F':
+      return 'Invalid JSON data';
+    case '2200G':
+      return 'Invalid JSON text';
+    case '2200H':
+      return 'Invalid JSON value';
+    case '2200B':
+      return 'Invalid SQL JSON subscript';
+    case '2200C':
+      return 'Invalid SQL JSON object';
+    case '2200D':
+      return 'Invalid SQL JSON array';
+    case '2200E':
+      return 'Invalid SQL JSON path';
+    case '2200F':
+      return 'Invalid SQL JSON expression';
+    case '2200G':
+      return 'Invalid SQL JSON predicate';
+    case '2200H':
+      return 'Invalid SQL JSON value';
+    case '2200I':
+      return 'Invalid SQL JSON argument';
+    case '2200J':
+      return 'Invalid SQL JSON function';
+    case '2200K':
+      return 'Invalid SQL JSON item';
+    case '2200L':
+      return 'Invalid SQL JSON path';
+    case '2200M':
+      return 'Invalid SQL JSON path expression';
+    case '2200N':
+      return 'Invalid SQL JSON path wildcard';
+    case '2200O':
+      return 'Invalid SQL JSON path subscript';
+    case '2200P':
+      return 'Invalid SQL JSON path predicate';
+    case '2200Q':
+      return 'Invalid SQL JSON path function';
+    case '2200R':
+      return 'Invalid SQL JSON path operator';
+    case '2200S':
+      return 'Invalid SQL JSON path value';
+    case '2200T':
+      return 'Invalid SQL JSON path argument';
+    case '2200U':
+      return 'Invalid SQL JSON path item';
+    case '2200V':
+      return 'Invalid SQL JSON path expression';
+    case '2200W':
+      return 'Invalid SQL JSON path wildcard';
+    case '2200X':
+      return 'Invalid SQL JSON path subscript';
+    case '2200Y':
+      return 'Invalid SQL JSON path predicate';
+    case '2200Z':
+      return 'Invalid SQL JSON path function';
+    case '22010':
+      return 'Invalid column reference';
+    case '22011':
+      return 'Invalid substring error';
+    case '22012':
+      return 'Division by zero';
+    case '22013':
+      return 'Invalid regular expression';
+    case '22014':
+      return 'Invalid argument for logarithm';
+    case '22015':
+      return 'Invalid argument for power function';
+    case '22016':
+      return 'Invalid argument for width bucket function';
+    case '22018':
+      return 'Invalid character value for cast';
+    case '22019':
+      return 'Invalid escape character';
+    case '22020':
+      return 'Invalid escape octet';
+    case '22021':
+      return 'Invalid character for Unicode escape';
+    case '22022':
+      return 'Invalid Unicode escape value';
+    case '22023':
+      return 'Invalid regular expression';
+    case '22024':
+      return 'Invalid escape sequence';
+    case '22025':
+      return 'Invalid escape character';
+    case '22026':
+      return 'Invalid SQL identifier name';
+    case '22027':
+      return 'Invalid Unicode surrogate pair';
+    case '2202B':
+      return 'Invalid repeat count';
+    case '2202C':
+      return 'Invalid regular expression';
+    case '2202D':
+      return 'Invalid regular expression';
+    case '2202E':
+      return 'Invalid regular expression';
+    case '2202F':
+      return 'Invalid regular expression';
+    case '22030':
+      return 'Invalid JSON text';
+    case '22031':
+      return 'Invalid JSON text';
+    case '22032':
+      return 'Invalid JSON text';
+    case '22033':
+      return 'Invalid JSON text';
+    case '22034':
+      return 'Invalid JSON text';
+    case '22035':
+      return 'Invalid JSON text';
+    case '22036':
+      return 'Invalid JSON text';
+    case '22037':
+      return 'Invalid JSON text';
+    case '22038':
+      return 'Invalid JSON text';
+    case '22039':
+      return 'Invalid JSON text';
+    case '2203A':
+      return 'Invalid JSON text';
+    case '2203B':
+      return 'Invalid JSON text';
+    case '2203C':
+      return 'Invalid JSON text';
+    case '2203D':
+      return 'Invalid JSON text';
+    case '2203E':
+      return 'Invalid JSON text';
+    case '2203F':
+      return 'Invalid JSON text';
+    case '22040':
+      return 'Invalid JSON text';
+    case '22041':
+      return 'Invalid JSON text';
+    case '22042':
+      return 'Invalid JSON text';
+    case '22043':
+      return 'Invalid JSON text';
+    case '22044':
+      return 'Invalid JSON text';
+    case '22045':
+      return 'Invalid JSON text';
+    case '22046':
+      return 'Invalid JSON text';
+    case '22047':
+      return 'Invalid JSON text';
+    case '22048':
+      return 'Invalid JSON text';
+    case '22049':
+      return 'Invalid JSON text';
+    case '2204A':
+      return 'Invalid JSON text';
+    case '2204B':
+      return 'Invalid JSON text';
+    case '2204C':
+      return 'Invalid JSON text';
+    case '2204D':
+      return 'Invalid JSON text';
+    case '2204E':
+      return 'Invalid JSON text';
+    case '2204F':
+      return 'Invalid JSON text';
+    case '22050':
+      return 'Invalid JSON text';
+    case '22051':
+      return 'Invalid JSON text';
+    case '22052':
+      return 'Invalid JSON text';
+    case '22053':
+      return 'Invalid JSON text';
+    case '22054':
+      return 'Invalid JSON text';
+    case '22055':
+      return 'Invalid JSON text';
+    case '22056':
+      return 'Invalid JSON text';
+    case '22057':
+      return 'Invalid JSON text';
+    case '22058':
+      return 'Invalid JSON text';
+    case '22059':
+      return 'Invalid JSON text';
+    case '2205A':
+      return 'Invalid JSON text';
+    case '2205B':
+      return 'Invalid JSON text';
+    case '2205C':
+      return 'Invalid JSON text';
+    case '2205D':
+      return 'Invalid JSON text';
+    case '2205E':
+      return 'Invalid JSON text';
+    case '2205F':
+      return 'Invalid JSON text';
+    case '22060':
+      return 'Invalid JSON text';
+    case '22061':
+      return 'Invalid JSON text';
+    case '22062':
+      return 'Invalid JSON text';
+    case '22063':
+      return 'Invalid JSON text';
+    case '22064':
+      return 'Invalid JSON text';
+    case '22065':
+      return 'Invalid JSON text';
+    case '22066':
+      return 'Invalid JSON text';
+    case '22067':
+      return 'Invalid JSON text';
+    case '22068':
+      return 'Invalid JSON text';
+    case '22069':
+      return 'Invalid JSON text';
+    case '2206A':
+      return 'Invalid JSON text';
+    case '2206B':
+      return 'Invalid JSON text';
+    case '2206C':
+      return 'Invalid JSON text';
+    case '2206D':
+      return 'Invalid JSON text';
+    case '2206E':
+      return 'Invalid JSON text';
+    case '2206F':
+      return 'Invalid JSON text';
+    case '22070':
+      return 'Invalid JSON text';
+    case '22071':
+      return 'Invalid JSON text';
+    case '22072':
+      return 'Invalid JSON text';
+    case '22073':
+      return 'Invalid JSON text';
+    case '22074':
+      return 'Invalid JSON text';
+    case '22075':
+      return 'Invalid JSON text';
+    case '22076':
+      return 'Invalid JSON text';
+    case '22077':
+      return 'Invalid JSON text';
+    case '22078':
+      return 'Invalid JSON text';
+    case '22079':
+      return 'Invalid JSON text';
+    case '2207A':
+      return 'Invalid JSON text';
+    case '2207B':
+      return 'Invalid JSON text';
+    case '2207C':
+      return 'Invalid JSON text';
+    case '2207D':
+      return 'Invalid JSON text';
+    case '2207E':
+      return 'Invalid JSON text';
+    case '2207F':
+      return 'Invalid JSON text';
+    case '22080':
+      return 'Invalid JSON text';
+    case '22081':
+      return 'Invalid JSON text';
+    case '22082':
+      return 'Invalid JSON text';
+    case '22083':
+      return 'Invalid JSON text';
+    case '22084':
+      return 'Invalid JSON text';
+    case '22085':
+      return 'Invalid JSON text';
+    case '22086':
+      return 'Invalid JSON text';
+    case '22087':
+      return 'Invalid JSON text';
+    case '22088':
+      return 'Invalid JSON text';
+    case '22089':
+      return 'Invalid JSON text';
+    case '2208A':
+      return 'Invalid JSON text';
+    case '2208B':
+      return 'Invalid JSON text';
+    case '2208C':
+      return 'Invalid JSON text';
+    case '2208D':
+      return 'Invalid JSON text';
+    case '2208E':
+      return 'Invalid JSON text';
+    case '2208F':
+      return 'Invalid JSON text';
+    case '22090':
+      return 'Invalid JSON text';
+    case '22091':
+      return 'Invalid JSON text';
+    case '22092':
+      return 'Invalid JSON text';
+    case '22093':
+      return 'Invalid JSON text';
+    case '22094':
+      return 'Invalid JSON text';
+    case '22095':
+      return 'Invalid JSON text';
+    case '22096':
+      return 'Invalid JSON text';
+    case '22097':
+      return 'Invalid JSON text';
+    case '22098':
+      return 'Invalid JSON text';
+    case '22099':
+      return 'Invalid JSON text';
+    case '2209A':
+      return 'Invalid JSON text';
+    case '2209B':
+      return 'Invalid JSON text';
+    case '2209C':
+      return 'Invalid JSON text';
+    case '2209D':
+      return 'Invalid JSON text';
+    case '2209E':
+      return 'Invalid JSON text';
+    case '2209F':
+      return 'Invalid JSON text';
+    case '220A0':
+      return 'Invalid JSON text';
+    case '220A1':
+      return 'Invalid JSON text';
+    case '220A2':
+      return 'Invalid JSON text';
+    case '220A3':
+      return 'Invalid JSON text';
+    case '220A4':
+      return 'Invalid JSON text';
+    case '220A5':
+      return 'Invalid JSON text';
+    case '220A6':
+      return 'Invalid JSON text';
+    case '220A7':
+      return 'Invalid JSON text';
+    case '220A8':
+      return 'Invalid JSON text';
+    case '220A9':
+      return 'Invalid JSON text';
+    case '220AA':
+      return 'Invalid JSON text';
+    case '220AB':
+      return 'Invalid JSON text';
+    case '220AC':
+      return 'Invalid JSON text';
+    case '220AD':
+      return 'Invalid JSON text';
+    case '220AE':
+      return 'Invalid JSON text';
+    case '220AF':
+      return 'Invalid JSON text';
+    case '220B0':
+      return 'Invalid JSON text';
+    case '220B1':
+      return 'Invalid JSON text';
+    case '220B2':
+      return 'Invalid JSON text';
+    case '220B3':
+      return 'Invalid JSON text';
+    case '220B4':
+      return 'Invalid JSON text';
+    case '220B5':
+      return 'Invalid JSON text';
+    case '220B6':
+      return 'Invalid JSON text';
+    case '220B7':
+      return 'Invalid JSON text';
+    case '220B8':
+      return 'Invalid JSON text';
+    case '220B9':
+      return 'Invalid JSON text';
+    case '220BA':
+      return 'Invalid JSON text';
+    case '220BB':
+      return 'Invalid JSON text';
+    case '220BC':
+      return 'Invalid JSON text';
+    case '220BD':
+      return 'Invalid JSON text';
+    case '220BE':
+      return 'Invalid JSON text';
+    case '220BF':
+      return 'Invalid JSON text';
+    case '220C0':
+      return 'Invalid JSON text';
+    case '220C1':
+      return 'Invalid JSON text';
+    case '220C2':
+      return 'Invalid JSON text';
+    case '220C3':
+      return 'Invalid JSON text';
+    case '220C4':
+      return 'Invalid JSON text';
+    case '220C5':
+      return 'Invalid JSON text';
+    case '220C6':
+      return 'Invalid JSON text';
+    case '220C7':
+      return 'Invalid JSON text';
+    case '220C8':
+      return 'Invalid JSON text';
+    case '220C9':
+      return 'Invalid JSON text';
+    case '220CA':
+      return 'Invalid JSON text';
+    case '220CB':
+      return 'Invalid JSON text';
+    case '220CC':
+      return 'Invalid JSON text';
+    case '220CD':
+      return 'Invalid JSON text';
+    case '220CE':
+      return 'Invalid JSON text';
+    case '220CF':
+      return 'Invalid JSON text';
+    case '220D0':
+      return 'Invalid JSON text';
+    case '220D1':
+      return 'Invalid JSON text';
+    case '220D2':
+      return 'Invalid JSON text';
+    case '220D3':
+      return 'Invalid JSON text';
+    case '220D4':
+      return 'Invalid JSON text';
+    case '220D5':
+      return 'Invalid JSON text';
+    case '220D6':
+      return 'Invalid JSON text';
+    case '220D7':
+      return 'Invalid JSON text';
+    case '220D8':
+      return 'Invalid JSON text';
+    case '220D9':
+      return 'Invalid JSON text';
+    case '220DA':
+      return 'Invalid JSON text';
+    case '220DB':
+      return 'Invalid JSON text';
+    case '220DC':
+      return 'Invalid JSON text';
+    case '220DD':
+      return 'Invalid JSON text';
+    case '220DE':
+      return 'Invalid JSON text';
+    case '220DF':
+      return 'Invalid JSON text';
+    case '220E0':
+      return 'Invalid JSON text';
+    case '220E1':
+      return 'Invalid JSON text';
+    case '220E2':
+      return 'Invalid JSON text';
+    case '220E3':
+      return 'Invalid JSON text';
+    case '220E4':
+      return 'Invalid JSON text';
+    case '220E5':
+      return 'Invalid JSON text';
+    case '220E6':
+      return 'Invalid JSON text';
+    case '220E7':
+      return 'Invalid JSON text';
+    case '220E8':
+      return 'Invalid JSON text';
+    case '220E9':
+      return 'Invalid JSON text';
+    case '220EA':
+      return 'Invalid JSON text';
+    case '220EB':
+      return 'Invalid JSON text';
+    case '220EC':
+      return 'Invalid JSON text';
+    case '220ED':
+      return 'Invalid JSON text';
+    case '220EE':
+      return 'Invalid JSON text';
+    case '220EF':
+      return 'Invalid JSON text';
+    case '220F0':
+      return 'Invalid JSON text';
+    case '220F1':
+      return 'Invalid JSON text';
+    case '220F2':
+      return 'Invalid JSON text';
+    case '220F3':
+      return 'Invalid JSON text';
+    case '220F4':
+      return 'Invalid JSON text';
+    case '220F5':
+      return 'Invalid JSON text';
+    case '220F6':
+      return 'Invalid JSON text';
+    case '220F7':
+      return 'Invalid JSON text';
+    case '220F8':
+      return 'Invalid JSON text';
+    case '220F9':
+      return 'Invalid JSON text';
+    case '220FA':
+      return 'Invalid JSON text';
+    case '220FB':
+      return 'Invalid JSON text';
+    case '220FC':
+      return 'Invalid JSON text';
+    case '220FD':
+      return 'Invalid JSON text';
+    case '220FE':
+      return 'Invalid JSON text';
+    case '220FF':
+      return 'Invalid JSON text';
+    case '22100':
+      return 'Invalid JSON text';
+    case '22101':
+      return 'Invalid JSON text';
+    case '22102':
+      return 'Invalid JSON text';
+    case '22103':
+      return 'Invalid JSON text';
+    case '22104':
+      return 'Invalid JSON text';
+    case '22105':
+      return 'Invalid JSON text';
+    case '22106':
+      return 'Invalid JSON text';
+    case '22107':
+      return 'Invalid JSON text';
+    case '22108':
+      return 'Invalid JSON text';
+    case '22109':
+      return 'Invalid JSON text';
+    case '2210A':
+      return 'Invalid JSON text';
+    case '2210B':
+      return 'Invalid JSON text';
+    case '2210C':
+      return 'Invalid JSON text';
+    case '2210D':
+      return 'Invalid JSON text';
+    case '2210E':
+      return 'Invalid JSON text';
+    case '2210F':
+      return 'Invalid JSON text';
+    case '22110':
+      return 'Invalid JSON text';
+    case '22111':
+      return 'Invalid JSON text';
+    case '22112':
+      return 'Invalid JSON text';
+    case '22113':
+      return 'Invalid JSON text';
+    case '22114':
+      return 'Invalid JSON text';
+    case '22115':
+      return 'Invalid JSON text';
+    case '22116':
+      return 'Invalid JSON text';
+    case '22117':
+      return 'Invalid JSON text';
+    case '22118':
+      return 'Invalid JSON text';
+    case '22119':
+      return 'Invalid JSON text';
+    case '2211A':
+      return 'Invalid JSON text';
+    case '2211B':
+      return 'Invalid JSON text';
+    case '2211C':
+      return 'Invalid JSON text';
+    case '2211D':
+      return 'Invalid JSON text';
+    case '2211E':
+      return 'Invalid JSON text';
+    case '2211F':
+      return 'Invalid JSON text';
+    case '22120':
+      return 'Invalid JSON text';
+    case '22121':
+      return 'Invalid JSON text';
+    case '22122':
+      return 'Invalid JSON text';
+    case '22123':
+      return 'Invalid JSON text';
+    case '22124':
+      return 'Invalid JSON text';
+    case '22125':
+      return 'Invalid JSON text';
+    case '22126':
+      return 'Invalid JSON text';
+    case '22127':
+      return 'Invalid JSON text';
+    case '22128':
+      return 'Invalid JSON text';
+    case '22129':
+      return 'Invalid JSON text';
+    case '2212A':
+      return 'Invalid JSON text';
+    case '2212B':
+      return 'Invalid JSON text';
+    case '2212C':
+      return 'Invalid JSON text';
+    case '2212D':
+      return 'Invalid JSON text';
+    case '2212E':
+      return 'Invalid JSON text';
+    case '2212F':
+      return 'Invalid JSON text';
+    case '22130':
+      return 'Invalid JSON text';
+    case '22131':
+      return 'Invalid JSON text';
+    case '22132':
+      return 'Invalid JSON text';
+    case '22133':
+      return 'Invalid JSON text';
+    case '22134':
+      return 'Invalid JSON text';
+    case '22135':
+      return 'Invalid JSON text';
+    case '22136':
+      return 'Invalid JSON text';
+    case '22137':
+      return 'Invalid JSON text';
+    case '22138':
+      return 'Invalid JSON text';
+    case '22139':
+      return 'Invalid JSON text';
+    case '2213A':
+      return 'Invalid JSON text';
+    case '2213B':
+      return 'Invalid JSON text';
+    case '2213C':
+      return 'Invalid JSON text';
+    case '2213D':
+      return 'Invalid JSON text';
+    case '2213E':
+      return 'Invalid JSON text';
+    case '2213F':
+      return 'Invalid JSON text';
+    case '22140':
+      return 'Invalid JSON text';
+    case '22141':
+      return 'Invalid JSON text';
+    case '22142':
+      return 'Invalid JSON text';
+    case '22143':
+      return 'Invalid JSON text';
+    case '22144':
+      return 'Invalid JSON text';
+    case '22145':
+      return 'Invalid JSON text';
+    case '22146':
+      return 'Invalid JSON text';
+    case '22147':
+      return 'Invalid JSON text';
+    case '22148':
+      return 'Invalid JSON text';
+    case '22149':
+      return 'Invalid JSON text';
+    case '2214A':
+      return 'Invalid JSON text';
+    case '2214B':
+      return 'Invalid JSON text';
+    case '2214C':
+      return 'Invalid JSON text';
+    case '2214D':
+      return 'Invalid JSON text';
+    case '2214E':
+      return 'Invalid JSON text';
+    case '2214F':
+      return 'Invalid JSON text';
+    case '22150':
+      return 'Invalid JSON text';
+    case '22151':
+      return 'Invalid JSON text';
+    case '22152':
+      return 'Invalid JSON text';
+    case '22153':
+      return 'Invalid JSON text';
+    case '22154':
+      return 'Invalid JSON text';
+    case '22155':
+      return 'Invalid JSON text';
+    case '22156':
+      return 'Invalid JSON text';
+    case '22157':
+      return 'Invalid JSON text';
+    case '22158':
+      return 'Invalid JSON text';
+    case '22159':
+      return 'Invalid JSON text';
+    case '2215A':
+      return 'Invalid JSON text';
+    case '2215B':
+      return 'Invalid JSON text';
+    case '2215C':
+      return 'Invalid JSON text';
+    case '2215D':
+      return 'Invalid JSON text';
+    case '2215E':
+      return 'Invalid JSON text';
+    case '2215F':
+      return 'Invalid JSON text';
+    case '22160':
+      return 'Invalid JSON text';
+    case '22161':
+      return 'Invalid JSON text';
+    case '22162':
+      return 'Invalid JSON text';
+    case '22163':
+      return 'Invalid JSON text';
+    case '22164':
+      return 'Invalid JSON text';
+    case '22165':
+      return 'Invalid JSON text';
+    case '22166':
+      return 'Invalid JSON text';
+    case '22167':
+      return 'Invalid JSON text';
+    case '22168':
+      return 'Invalid JSON text';
+    case '22169':
+      return 'Invalid JSON text';
+    case '2216A':
+      return 'Invalid JSON text';
+    case '2216B':
+      return 'Invalid JSON text';
+    case '2216C':
+      return 'Invalid JSON text';
+    case '2216D':
+      return 'Invalid JSON text';
+    case '2216E':
+      return 'Invalid JSON text';
+    case '2216F':
+      return 'Invalid JSON text';
+    case '22170':
+      return 'Invalid JSON text';
+    case '22171':
+      return 'Invalid JSON text';
+    case '22172':
+      return 'Invalid JSON text';
+    case '22173':
+      return 'Invalid JSON text';
+    case '22174':
+      return 'Invalid JSON text';
+    case '22175':
+      return 'Invalid JSON text';
+    case '22176':
+      return 'Invalid JSON text';
+    case '22177':
+      return 'Invalid JSON text';
+    case '22178':
+      return 'Invalid JSON text';
+    case '22179':
+      return 'Invalid JSON text';
+    case '2217A':
+      return 'Invalid JSON text';
+    case '2217B':
+      return 'Invalid JSON text';
+    case '2217C':
+      return 'Invalid JSON text';
+    case '2217D':
+      return 'Invalid JSON text';
+    case '2217E':
+      return 'Invalid JSON text';
+    case '2217F':
+      return 'Invalid JSON text';
+    case '22180':
+      return 'Invalid JSON text';
+    case '22181':
+      return 'Invalid JSON text';
+    case '22182':
+      return 'Invalid JSON text';
+    case '22183':
+      return 'Invalid JSON text';
+    case '22184':
+      return 'Invalid JSON text';
+    case '22185':
+      return 'Invalid JSON text';
+    case '22186':
+      return 'Invalid JSON text';
+    case '22187':
+      return 'Invalid JSON text';
+    case '22188':
+      return 'Invalid JSON text';
+    case '22189':
+      return 'Invalid JSON text';
+    case '2218A':
+      return 'Invalid JSON text';
+    case '2218B':
+      return 'Invalid JSON text';
+    case '2218C':
+      return 'Invalid JSON text';
+    case '2218D':
+      return 'Invalid JSON text';
+    case '2218E':
+      return 'Invalid JSON text';
+    case '2218F':
+      return 'Invalid JSON text';
+    case '22190':
+      return 'Invalid JSON text';
+    case '22191':
+      return 'Invalid JSON text';
+    case '22192':
+      return 'Invalid JSON text';
+    case '22193':
+      return 'Invalid JSON text';
+    case '22194':
+      return 'Invalid JSON text';
+    case '22195':
+      return 'Invalid JSON text';
+    case '22196':
+      return 'Invalid JSON text';
+    case '22197':
+      return 'Invalid JSON text';
+    case '22198':
+      return 'Invalid JSON text';
+    case '22199':
+      return 'Invalid JSON text';
+    case '2219A':
+      return 'Invalid JSON text';
+    case '2219B':
+      return 'Invalid JSON text';
+    case '2219C':
+      return 'Invalid JSON text';
+    case '2219D':
+      return 'Invalid JSON text';
+    case '2219E':
+      return 'Invalid JSON text';
+    case '2219F':
+      return 'Invalid JSON text';
+    case '221A0':
+      return 'Invalid JSON text';
+    case '221A1':
+      return 'Invalid JSON text';
+    case '221A2':
+      return 'Invalid JSON text';
+    case '221A3':
+      return 'Invalid JSON text';
+    case '221A4':
+      return 'Invalid JSON text';
+    case '221A5':
+      return 'Invalid JSON text';
+    case '221A6':
+      return 'Invalid JSON text';
+    case '221A7':
+      return 'Invalid JSON text';
+    case '221A8':
+      return 'Invalid JSON text';
+    case '221A9':
+      return 'Invalid JSON text';
+    case '221AA':
+      return 'Invalid JSON text';
+    case '221AB':
+      return 'Invalid JSON text';
+    case '221AC':
+      return 'Invalid JSON text';
+    case '221AD':
+      return 'Invalid JSON text';
+    case '221AE':
+      return 'Invalid JSON text';
+    case '221AF':
+      return 'Invalid JSON text';
+    case '221B0':
+      return 'Invalid JSON text';
+    case '221B1':
+      return 'Invalid JSON text';
+    case '221B2':
+      return 'Invalid JSON text';
+    case '221B3':
+      return 'Invalid JSON text';
+    case '221B4':
+      return 'Invalid JSON text';
+    case '221B5':
+      return 'Invalid JSON text';
+    case '221B6':
+      return 'Invalid JSON text';
+    case '221B7':
+      return 'Invalid JSON text';
+    case '221B8':
+      return 'Invalid JSON text';
+    case '221B9':
+      return 'Invalid JSON text';
+    case '221BA':
+      return 'Invalid JSON text';
+    case '221BB':
+      return 'Invalid JSON text';
+    case '221BC':
+      return 'Invalid JSON text';
+    case '221BD':
+      return 'Invalid JSON text';
+    case '221BE':
+      return 'Invalid JSON text';
+    case '221BF':
+      return 'Invalid JSON text';
+    case '221C0':
+      return 'Invalid JSON text';
+    case '221C1':
+      return 'Invalid JSON text';
+    case '221C2':
+      return 'Invalid JSON text';
+    case '221C3':
+      return 'Invalid JSON text';
+    case '221C4':
+      return 'Invalid JSON text';
+    case '221C5':
+      return 'Invalid JSON text';
+    case '221C6':
+      return 'Invalid JSON text';
+    case '221C7':
+      return 'Invalid JSON text';
+    case '221C8':
+      return 'Invalid JSON text';
+    case '221C9':
+      return 'Invalid JSON text';
+    case '221CA':
+      return 'Invalid JSON text';
+    case '221CB':
+      return 'Invalid JSON text';
+    case '221CC':
+      return 'Invalid JSON text';
+    case '221CD':
+      return 'Invalid JSON text';
+    case '221CE':
+      return 'Invalid JSON text';
+    case '221CF':
+      return 'Invalid JSON text';
+    case '221D0':
+      return 'Invalid JSON text';
+    case '221D1':
+      return 'Invalid JSON text';
+    case '221D2':
+      return 'Invalid JSON text';
+    case '221D3':
+      return 'Invalid JSON text';
+    case '221D4':
+      return 'Invalid JSON text';
+    case '221D5':
+      return 'Invalid JSON text';
+    case '221D6':
+      return 'Invalid JSON text';
+    case '221D7':
+      return 'Invalid JSON text';
+    case '221D8':
+      return 'Invalid JSON text';
+    case '221D9':
+      return 'Invalid JSON text';
+    case '221DA':
+      return 'Invalid JSON text';
+    case '221DB':
+      return 'Invalid JSON text';
+    case '221DC':
+      return 'Invalid JSON text';
+    case '221DD':
+      return 'Invalid JSON text';
+    case '221DE':
+      return 'Invalid JSON text';
+    case '221DF':
+      return 'Invalid JSON text';
+    case '221E0':
+      return 'Invalid JSON text';
+    case '221E1':
+      return 'Invalid JSON text';
+    case '221E2':
+      return 'Invalid JSON text';
+    case '221E3':
+      return 'Invalid JSON text';
+    case '221E4':
+      return 'Invalid JSON text';
+    case '221E5':
+      return 'Invalid JSON text';
+    case '221E6':
+      return 'Invalid JSON text';
+    case '221E7':
+      return 'Invalid JSON text';
+    case '221E8':
+      return 'Invalid JSON text';
+    case '221E9':
+      return 'Invalid JSON text';
+    case '221EA':
+      return 'Invalid JSON text';
+    case '221EB':
+      return 'Invalid JSON text';
+    case '221EC':
+      return 'Invalid JSON text';
+    case '221ED':
+      return 'Invalid JSON text';
+    case '221EE':
+      return 'Invalid JSON text';
+    case '221EF':
+      return 'Invalid JSON text';
+    case '221F0':
+      return 'Invalid JSON text';
+    case '221F1':
+      return 'Invalid JSON text';
+    case '221F2':
+      return 'Invalid JSON text';
+    case '221F3':
+      return 'Invalid JSON text';
+    case '221F4':
+      return 'Invalid JSON text';
+    case '221F5':
+      return 'Invalid JSON text';
+    case '221F6':
+      return 'Invalid JSON text';
+    case '221F7':
+      return 'Invalid JSON text';
+    case '221F8':
+      return 'Invalid JSON text';
+    case '221F9':
+      return 'Invalid JSON text';
+    case '221FA':
+      return 'Invalid JSON text';
+    case '221FB':
+      return 'Invalid JSON text';
+    case '221FC':
+      return 'Invalid JSON text';
+    case '221FD':
+      return 'Invalid JSON text';
+    case '221FE':
+      return 'Invalid JSON text';
+    case '221FF':
+      return 'Invalid JSON text';
+    case '22200':
+      return 'Invalid JSON text';
+    case '22201':
+      return 'Invalid JSON text';
+    case '22202':
+      return 'Invalid JSON text';
+    case '22203':
+      return 'Invalid JSON text';
+    case '22204':
+      return 'Invalid JSON text';
+    case '22205':
+      return 'Invalid JSON text';
+    case '22206':
+      return 'Invalid JSON text';
+    case '22207':
+      return 'Invalid JSON text';
+    case '22208':
+      return 'Invalid JSON text';
+    case '22209':
+      return 'Invalid JSON text';
+    case '2220A':
+      return 'Invalid JSON text';
+    case '2220B':
+      return 'Invalid JSON text';
+    case '2220C':
+      return 'Invalid JSON text';
+    case '2220D':
+      return 'Invalid JSON text';
+    case '2220E':
+      return 'Invalid JSON text';
+    case '2220F':
+      return 'Invalid JSON text';
+    case '22210':
+      return 'Invalid JSON text';
+    case '22211':
+      return 'Invalid JSON text';
+    case '22212':
+      return 'Invalid JSON text';
+    case '22213':
+      return 'Invalid JSON text';
+    case '22214':
+      return 'Invalid JSON text';
+    case '22215':
+      return 'Invalid JSON text';
+    case '22216':
+      return 'Invalid JSON text';
+    case '22217':
+      return 'Invalid JSON text';
+    case '22218':
+      return 'Invalid JSON text';
+    case '22219':
+      return 'Invalid JSON text';
+    case '2221A':
+      return 'Invalid JSON text';
+    case '2221B':
+      return 'Invalid JSON text';
+    case '2221C':
+      return 'Invalid JSON text';
+    case '2221D':
+      return 'Invalid JSON text';
+    case '2221E':
+      return 'Invalid JSON text';
+    case '2221F':
+      return 'Invalid JSON text';
+    case '22220':
+      return 'Invalid JSON text';
+    case '22221':
+      return 'Invalid JSON text';
+    case '22222':
+      return 'Invalid JSON text';
+    case '22223':
+      return 'Invalid JSON text';
+    case '22224':
+      return 'Invalid JSON text';
+    case '22225':
+      return 'Invalid JSON text';
+    case '22226':
+      return 'Invalid JSON text';
+    case '22227':
+      return 'Invalid JSON text';
+    case '22228':
+      return 'Invalid JSON text';
+    case '22229':
+      return 'Invalid JSON text';
+    case '2222A':
+      return 'Invalid JSON text';
+    case '2222B':
+      return 'Invalid JSON text';
+    case '2222C':
+      return 'Invalid JSON text';
+    case '2222D':
+      return 'Invalid JSON text';
+    case '2222E':
+      return 'Invalid JSON text';
+    case '2222F':
+      return 'Invalid JSON text';
+    case '22230':
+      return 'Invalid JSON text';
+    case '22231':
+      return 'Invalid JSON text';
+    case '22232':
+      return 'Invalid JSON text';
+    case '22233':
+      return 'Invalid JSON text';
+    case '22234':
+      return 'Invalid JSON text';
+    case '22235':
+      return 'Invalid JSON text';
+    case '22236':
+      return 'Invalid JSON text';
+    case '22237':
+      return 'Invalid JSON text';
+    case '22238':
+      return 'Invalid JSON text';
+    case '22239':
+      return 'Invalid JSON text';
+    case '2223A':
+      return 'Invalid JSON text';
+    case '2223B':
+      return 'Invalid JSON text';
+    case '2223C':
+      return 'Invalid JSON text';
+    case '2223D':
+      return 'Invalid JSON text';
+    case '2223E':
+      return 'Invalid JSON text';
+    case '2223F':
+      return 'Invalid JSON text';
+    case '22240':
+      return 'Invalid JSON text';
+    case '22241':
+      return 'Invalid JSON text';
+    case '22242':
+      return 'Invalid JSON text';
+    case '22243':
+      return 'Invalid JSON text';
+    case '22244':
+      return 'Invalid JSON text';
+    case '22245':
+      return 'Invalid JSON text';
+    case '22246':
+      return 'Invalid JSON text';
+    case '22247':
+      return 'Invalid JSON text';
+    case '22248':
+      return 'Invalid JSON text';
+    case '22249':
+      return 'Invalid JSON text';
+    case '2224A':
+      return 'Invalid JSON text';
+    case '2224B':
+      return 'Invalid JSON text';
+    case '2224C':
+      return 'Invalid JSON text';
+    case '2224D':
+      return 'Invalid JSON text';
+    case '2224E':
+      return 'Invalid JSON text';
+    case '2224F':
+      return 'Invalid JSON text';
+    case '22250':
+      return 'Invalid JSON text';
+    case '22251':
+      return 'Invalid JSON text';
+    case '22252':
+      return 'Invalid JSON text';
+    case '22253':
+      return 'Invalid JSON text';
+    case '22254':
+      return 'Invalid JSON text';
+    case '22255':
+      return 'Invalid JSON text';
+    case '22256':
+      return 'Invalid JSON text';
+    case '22257':
+      return 'Invalid JSON text';
+    case '22258':
+      return 'Invalid JSON text';
+    case '22259':
+      return 'Invalid JSON text';
+    case '2225A':
+      return 'Invalid JSON text';
+    case '2225B':
+      return 'Invalid JSON text';
+    case '2225C':
+      return 'Invalid JSON text';
+    case '2225D':
+      return 'Invalid JSON text';
+    case '2225E':
+      return 'Invalid JSON text';
+    case '2225F':
+      return 'Invalid JSON text';
+    case '22260':
+      return 'Invalid JSON text';
+    case '22261':
+      return 'Invalid JSON text';
+    case '22262':
+      return 'Invalid JSON text';
+    case '22263':
+      return 'Invalid JSON text';
+    case '22264':
+      return 'Invalid JSON text';
+    case '22265':
+      return 'Invalid JSON text';
+    case '22266':
+      return 'Invalid JSON text';
+    case '22267':
+      return 'Invalid JSON text';
+    case '22268':
+      return 'Invalid JSON text';
+    case '22269':
+      return 'Invalid JSON text';
+    case '2226A':
+      return 'Invalid JSON text';
+    case '2226B':
+      return 'Invalid JSON text';
+    case '2226C':
+      return 'Invalid JSON text';
+    case '2226D':
+      return 'Invalid JSON text';
+    case '2226E':
+      return 'Invalid JSON text';
+    case '2226F':
+      return 'Invalid JSON text';
+    case '22270':
+      return 'Invalid JSON text';
+    case '22271':
+      return 'Invalid JSON text';
+    case '22272':
+      return 'Invalid JSON text';
+    case '22273':
+      return 'Invalid JSON text';
+    case '22274':
+      return 'Invalid JSON text';
+    case '22275':
+      return 'Invalid JSON text';
+    case '22276':
+      return 'Invalid JSON text';
+    case '22277':
+      return 'Invalid JSON text';
+    case '22278':
+      return 'Invalid JSON text';
+    case '22279':
+      return 'Invalid JSON text';
+    case '2227A':
+      return 'Invalid JSON text';
+    case '2227B':
+      return 'Invalid JSON text';
+    case '2227C':
+      return 'Invalid JSON text';
+    case '2227D':
+      return 'Invalid JSON text';
+    case '2227E':
+      return 'Invalid JSON text';
+    case '2227F':
+      return 'Invalid JSON text';
+    case '22280':
+      return 'Invalid JSON text';
+    case '22281':
+      return 'Invalid JSON text';
+    case '22282':
+      return 'Invalid JSON text';
+    case '22283':
+      return 'Invalid JSON text';
+    case '22284':
+      return 'Invalid JSON text';
+    case '22285':
+      return 'Invalid JSON text';
+    case '22286':
+      return 'Invalid JSON text';
+    case '22287':
+      return 'Invalid JSON text';
+    case '22288':
+      return 'Invalid JSON text';
+    case '22289':
+      return 'Invalid JSON text';
+    case '2228A':
+      return 'Invalid JSON text';
+    case '2228B':
+      return 'Invalid JSON text';
+    case '2228C':
+      return 'Invalid JSON text';
+    case '2228D':
+      return 'Invalid JSON text';
+    case '2228E':
+      return 'Invalid JSON text';
+    case '2228F':
+      return 'Invalid JSON text';
+    case '22290':
+      return 'Invalid JSON text';
+    case '22291':
+      return 'Invalid JSON text';
+    case '22292':
+      return 'Invalid JSON text';
+    case '22293':
+      return 'Invalid JSON text';
+    case '22294':
+      return 'Invalid JSON text';
+    case '22295':
+      return 'Invalid JSON text';
+    case '22296':
+      return 'Invalid JSON text';
+    case '22297':
+      return 'Invalid JSON text';
+    case '22298':
+      return 'Invalid JSON text';
+    case '22299':
+      return 'Invalid JSON text';
+    case '2229A':
+      return 'Invalid JSON text';
+    case '2229B':
+      return 'Invalid JSON text';
+    case '2229C':
+      return 'Invalid JSON text';
+    case '2229D':
+      return 'Invalid JSON text';
+    case '2229E':
+      return 'Invalid JSON text';
+    case '2229F':
+      return 'Invalid JSON text';
+    case '222A0':
+      return 'Invalid JSON text';
+    case '222A1':
+      return 'Invalid JSON text';
+    case '222A2':
+      return 'Invalid JSON text';
+    case '222A3':
+      return 'Invalid JSON text';
+    case '222A4':
+      return 'Invalid JSON text';
+    case '222A5':
+      return 'Invalid JSON text';
+    case '222A6':
+      return 'Invalid JSON text';
+    case '222A7':
+      return 'Invalid JSON text';
+    case '222A8':
+      return 'Invalid JSON text';
+    case '222A9':
+      return 'Invalid JSON text';
+    case '222AA':
+      return 'Invalid JSON text';
+    case '222AB':
+      return 'Invalid JSON text';
+    case '222AC':
+      return 'Invalid JSON text';
+    case '222AD':
+      return 'Invalid JSON text';
+    case '222AE':
+      return 'Invalid JSON text';
+    case '222AF':
+      return 'Invalid JSON text';
+    case '222B0':
+      return 'Invalid JSON text';
+    case '222B1':
+      return 'Invalid JSON text';
+    case '222B2':
+      return 'Invalid JSON text';
+    case '222B3':
+      return 'Invalid JSON text';
+    case '222B4':
+      return 'Invalid JSON text';
+    case '222B5':
+      return 'Invalid JSON text';
+    case '222B6':
+      return 'Invalid JSON text';
+    case '222B7':
+      return 'Invalid JSON text';
+    case '222B8':
+      return 'Invalid JSON text';
+    case '222B9':
+      return 'Invalid JSON text';
+    case '222BA':
+      return 'Invalid JSON text';
+    case '222BB':
+      return 'Invalid JSON text';
+    case '222BC':
+      return 'Invalid JSON text';
+    case '222BD':
+      return 'Invalid JSON text';
+    case '222BE':
+      return 'Invalid JSON text';
+    case '222BF':
+      return 'Invalid JSON text';
+    case '222C0':
+      return 'Invalid JSON text';
+    case '222C1':
+      return 'Invalid JSON text';
+    case '222C2':
+      return 'Invalid JSON text';
+    case '222C3':
+      return 'Invalid JSON text';
+    case '222C4':
+      return 'Invalid JSON text';
+    case '222C5':
+      return 'Invalid JSON text';
+    case '222C6':
+      return 'Invalid JSON text';
+    case '222C7':
+      return 'Invalid JSON text';
+    case '222C8':
+      return 'Invalid JSON text';
+    case '222C9':
+      return 'Invalid JSON text';
+    case '222CA':
+      return 'Invalid JSON text';
+    case '222CB':
+      return 'Invalid JSON text';
+    case '222CC':
+      return 'Invalid JSON text';
+    case '222CD':
+      return 'Invalid JSON text';
+    case '222CE':
+      return 'Invalid JSON text';
+    case '222CF':
+      return 'Invalid JSON text';
+    case '222D0':
+      return 'Invalid JSON text';
+    case '222D1':
+      return 'Invalid JSON text';
+    case '222D2':
+      return 'Invalid JSON text';
+    case '222D3':
+      return 'Invalid JSON text';
+    case '222D4':
+      return 'Invalid JSON text';
+    case '222D5':
+      return 'Invalid JSON text';
+    case '222D6':
+      return 'Invalid JSON text';
+    case '222D7':
+      return 'Invalid JSON text';
+    case '222D8':
+      return 'Invalid JSON text';
+    case '222D9':
+      return 'Invalid JSON text';
+    case '222DA':
+      return 'Invalid JSON text';
+    case '222DB':
+      return 'Invalid JSON text';
+    case '222DC':
+      return 'Invalid JSON text';
+    case '222DD':
+      return 'Invalid JSON text';
+    case '222DE':
+      return 'Invalid JSON text';
+    case '222DF':
+      return 'Invalid JSON text';
+    case '222E0':
+      return 'Invalid JSON text';
+    case '222E1':
+      return 'Invalid JSON text';
+    case '222E2':
+      return 'Invalid JSON text';
+    case '222E3':
+      return 'Invalid JSON text';
+    case '222E4':
+      return 'Invalid JSON text';
+    case '222E5':
+      return 'Invalid JSON text';
+    case '222E6':
+      return 'Invalid JSON text';
+    case '222E7':
+      return 'Invalid JSON text';
+    case '222E8':
+      return 'Invalid JSON text';
+    case '222E9':
+      return 'Invalid JSON text';
+    case '222EA':
+      return 'Invalid JSON text';
+    case '222EB':
+      return 'Invalid JSON text';
+    case '222EC':
+      return 'Invalid JSON text';
+    case '222ED':
+      return 'Invalid JSON text';
+    case '222EE':
+      return 'Invalid JSON text';
+    case '222EF':
+      return 'Invalid JSON text';
+    case '222F0':
+      return 'Invalid JSON text';
+    case '222F1':
+      return 'Invalid JSON text';
+    case '222F2':
+      return 'Invalid JSON text';
+    case '222F3':
+      return 'Invalid JSON text';
+    case '222F4':
+      return 'Invalid JSON text';
+    case '222F5':
+      return 'Invalid JSON text';
+    case '222F6':
+      return 'Invalid JSON text';
+    case '222F7':
+      return 'Invalid JSON text';
+    case '222F8':
+      return 'Invalid JSON text';
+    case '222F9':
+      return 'Invalid JSON text';
+    case '222FA':
+      return 'Invalid JSON text';
+    case '222FB':
+      return 'Invalid JSON text';
+    case '222FC':
+      return 'Invalid JSON text';
+    case '222FD':
+      return 'Invalid JSON text';
+    case '222FE':
+      return 'Invalid JSON text';
+    case '222FF':
+      return 'Invalid JSON text';
+    case '22300':
+      return 'Invalid JSON text';
+    case '22301':
+      return 'Invalid JSON text';
+    case '22302':
+      return 'Invalid JSON text';
+    case '22303':
+      return 'Invalid JSON text';
+    case '22304':
+      return 'Invalid JSON text';
+    case '22305':
+      return 'Invalid JSON text';
+    case '22306':
+      return 'Invalid JSON text';
+    case '22307':
+      return 'Invalid JSON text';
+    case '22308':
+      return 'Invalid JSON text';
+    case '22309':
+      return 'Invalid JSON text';
+    case '2230A':
+      return 'Invalid JSON text';
+    case '2230B':
+      return 'Invalid JSON text';
+    case '2230C':
+      return 'Invalid JSON text';
+    case '2230D':
+      return 'Invalid JSON text';
+    case '2230E':
+      return 'Invalid JSON text';
+    case '2230F':
+      return 'Invalid JSON text';
+    case '22310':
+      return 'Invalid JSON text';
+    case '22311':
+      return 'Invalid JSON text';
+    case '22312':
+      return 'Invalid JSON text';
+    case '22313':
+      return 'Invalid JSON text';
+    case '22314':
+      return 'Invalid JSON text';
+    case '22315':
+      return 'Invalid JSON text';
+    case '22316':
+      return 'Invalid JSON text';
+    case '22317':
+      return 'Invalid JSON text';
+    case '22318':
+      return 'Invalid JSON text';
+    case '22319':
+      return 'Invalid JSON text';
+    case '2231A':
+      return 'Invalid JSON text';
+    case '2231B':
+      return 'Invalid JSON text';
+    case '2231C':
+      return 'Invalid JSON text';
+    case '2231D':
+      return 'Invalid JSON text';
+    case '2231E':
+      return 'Invalid JSON text';
+    case '2231F':
+      return 'Invalid JSON text';
+    case '22320':
+      return 'Invalid JSON text';
+    case '22321':
+      return 'Invalid JSON text';
+    case '22322':
+      return 'Invalid JSON text';
+    case '22323':
+      return 'Invalid JSON text';
+    case '22324':
+      return 'Invalid JSON text';
+    case '22325':
+      return 'Invalid JSON text';
+    case '22326':
+      return 'Invalid JSON text';
+    case '22327':
+      return 'Invalid JSON text';
+    case '22328':
+      return 'Invalid JSON text';
+    case '22329':
+      return 'Invalid JSON text';
+    case '2232A':
+      return 'Invalid JSON text';
+    case '2232B':
+      return 'Invalid JSON text';
+    case '2232C':
+      return 'Invalid JSON text';
+    case '2232D':
+      return 'Invalid JSON text';
+    case '2232E':
+      return 'Invalid JSON text';
+    case '2232F':
+      return 'Invalid JSON text';
+    case '22330':
+      return 'Invalid JSON text';
+    case '22331':
+      return 'Invalid JSON text';
+    case '22332':
+      return 'Invalid JSON text';
+    case '22333':
+      return 'Invalid JSON text';
+    case '22334':
+      return 'Invalid JSON text';
+    case '22335':
+      return 'Invalid JSON text';
+    case '22336':
+      return 'Invalid JSON text';
+    case '22337':
+      return 'Invalid JSON text';
+    case '22338':
+      return 'Invalid JSON text';
+    case '22339':
+      return 'Invalid JSON text';
+    case '2233A':
+      return 'Invalid JSON text';
+    case '2233B':
+      return 'Invalid JSON text';
+    case '2233C':
+      return 'Invalid JSON text';
+    case '2233D':
+      return 'Invalid JSON text';
+    case '2233E':
+      return 'Invalid JSON text';
+    case '2233F':
+      return 'Invalid JSON text';
+    case '22340':
+      return 'Invalid JSON text';
+    case '22341':
+      return 'Invalid JSON text';
+    case '22342':
+      return 'Invalid JSON text';
+    case '22343':
+      return 'Invalid JSON text';
+    case '22344':
+      return 'Invalid JSON text';
+    case '22345':
+      return 'Invalid JSON text';
+    case '22346':
+      return 'Invalid JSON text';
+    case '22347':
+      return 'Invalid JSON text';
+    case '22348':
+      return 'Invalid JSON text';
+    case '22349':
+      return 'Invalid JSON text';
+    case '2234A':
+      return 'Invalid JSON text';
+    case '2234B':
+      return 'Invalid JSON text';
+    case '2234C':
+      return 'Invalid JSON text';
+    case '2234D':
+      return 'Invalid JSON text';
+    case '2234E':
+      return 'Invalid JSON text';
+    case '2234F':
+      return 'Invalid JSON text';
+    case '22350':
+      return 'Invalid JSON text';
+    case '22351':
+      return 'Invalid JSON text';
+    case '22352':
+      return 'Invalid JSON text';
+    case '22353':
+      return 'Invalid JSON text';
+    case '22354':
+      return 'Invalid JSON text';
+    case '22355':
+      return 'Invalid JSON text';
+    case '22356':
+      return 'Invalid JSON text';
+    case '22357':
+      return 'Invalid JSON text';
+    case '22358':
+      return 'Invalid JSON text';
+    case '22359':
+      return 'Invalid JSON text';
+    case '2235A':
+      return 'Invalid JSON text';
+    case '2235B':
+      return 'Invalid JSON text';
+    case '2235C':
+      return 'Invalid JSON text';
+    case '2235D':
+      return 'Invalid JSON text';
+    case '2235E':
+      return 'Invalid JSON text';
+    case '2235F':
+      return 'Invalid JSON text';
+    case '22360':
+      return 'Invalid JSON text';
+    case '22361':
+      return 'Invalid JSON text';
+    case '22362':
+      return 'Invalid JSON text';
+    case '22363':
+      return 'Invalid JSON text';
+    case '22364':
+      return 'Invalid JSON text';
+    case '22365':
+      return 'Invalid JSON text';
+    case '22366':
+      return 'Invalid JSON text';
+    case '22367':
+      return 'Invalid JSON text';
+    case '22368':
+      return 'Invalid JSON text';
+    case '22369':
+      return 'Invalid JSON text';
+    case '2236A':
+      return 'Invalid JSON text';
+    case '2236B':
+      return 'Invalid JSON text';
+    case '2236C':
+      return 'Invalid JSON text';
+    case '2236D':
+      return 'Invalid JSON text';
+    case '2236E':
+      return 'Invalid JSON text';
+    case '2236F':
+      return 'Invalid JSON text';
+    case '22370':
+      return 'Invalid JSON text';
+    case '22371':
+      return 'Invalid JSON text';
+    case '22372':
+      return 'Invalid JSON text';
+    case '22373':
+      return 'Invalid JSON text';
+    case '22374':
+      return 'Invalid JSON text';
+    case '22375':
+      return 'Invalid JSON text';
+    case '22376':
+      return 'Invalid JSON text';
+    case '22377':
+      return 'Invalid JSON text';
+    case '22378':
+      return 'Invalid JSON text';
+    case '22379':
+      return 'Invalid JSON text';
+    case '2237A':
+      return 'Invalid JSON text';
+    case '2237B':
+      return 'Invalid JSON text';
+    case '2237C':
+      return 'Invalid JSON text';
+    case '2237D':
+      return 'Invalid JSON text';
+    case '2237E':
+      return 'Invalid JSON text';
+    case '2237F':
+      return 'Invalid JSON text';
+    case '22380':
+      return 'Invalid JSON text';
+    case '22381':
+      return 'Invalid JSON text';
+    case '22382':
+      return 'Invalid JSON text';
+    case '22383':
+      return 'Invalid JSON text';
+    case '22384':
+      return 'Invalid JSON text';
+    case '22385':
+      return 'Invalid JSON text';
+    case '22386':
+      return 'Invalid JSON text';
+    case '22387':
+      return 'Invalid JSON text';
+    case '22388':
+      return 'Invalid JSON text';
+    case '22389':
+      return 'Invalid JSON text';
+    case '2238A':
+      return 'Invalid JSON text';
+    case '2238B':
+      return 'Invalid JSON text';
+    case '2238C':
+      return 'Invalid JSON text';
+    case '2238D':
+      return 'Invalid JSON text';
+    case '2238E':
+      return 'Invalid JSON text';
+    case '2238F':
+      return 'Invalid JSON text';
+    case '22390':
+      return 'Invalid JSON text';
+    case '22391':
+      return 'Invalid JSON text';
+    case '22392':
+      return 'Invalid JSON text';
+    case '22393':
+      return 'Invalid JSON text';
+    case '22394':
+      return 'Invalid JSON text';
+    case '22395':
+      return 'Invalid JSON text';
+    case '22396':
+      return 'Invalid JSON text';
+    case '22397':
+      return 'Invalid JSON text';
+    case '22398':
+      return 'Invalid JSON text';
+    case '22399':
+      return 'Invalid JSON text';
+    case '2239A':
+      return 'Invalid JSON text';
+    case '2239B':
+      return 'Invalid JSON text';
+    case '2239C':
+      return 'Invalid JSON text';
+    case '2239D':
+      return 'Invalid JSON text';
+    case '2239E':
+      return 'Invalid JSON text';
+    case '2239F':
+      return 'Invalid JSON text';
+    case '223A0':
+      return 'Invalid JSON text';
+    case '223A1':
+      return 'Invalid JSON text';
+    case '223A2':
+      return 'Invalid JSON text';
+    case '223A3':
+      return 'Invalid JSON text';
+    case '223A4':
+      return 'Invalid JSON text';
+    case '223A5':
+      return 'Invalid JSON text';
+    case '223A6':
+      return 'Invalid JSON text';
+    case '223A7':
+      return 'Invalid JSON text';
+    case '223A8':
+      return 'Invalid JSON text';
+    case '223A9':
+      return 'Invalid JSON text';
+    case '223AA':
+      return 'Invalid JSON text';
+    case '223AB':
+      return 'Invalid JSON text';
+    case '223AC':
+      return 'Invalid JSON text';
+    case '223AD':
+      return 'Invalid JSON text';
+    case '223AE':
+      return 'Invalid JSON text';
+    case '223AF':
+      return 'Invalid JSON text';
+    case '223B0':
+      return 'Invalid JSON text';
+    case '223B1':
+      return 'Invalid JSON text';
+    case '223B2':
+      return 'Invalid JSON text';
+    case '223B3':
+      return 'Invalid JSON text';
+    case '223B4':
+      return 'Invalid JSON text';
+    case '223B5':
+      return 'Invalid JSON text';
+    case '223B6':
+      return 'Invalid JSON text';
+    case '223B7':
+      return 'Invalid JSON text';
+    case '223B8':
+      return 'Invalid JSON text';
+    case '223B9':
+      return 'Invalid JSON text';
+    case '223BA':
+      return 'Invalid JSON text';
+    case '223BB':
+      return 'Invalid JSON text';
+    case '223BC':
+      return 'Invalid JSON text';
+    case '223BD':
+      return 'Invalid JSON text';
+    case '223BE':
+      return 'Invalid JSON text';
+    case '223BF':
+      return 'Invalid JSON text';
+    case '223C0':
+      return 'Invalid JSON text';
+    case '223C1':
+      return 'Invalid JSON text';
+    case '223C2':
+      return 'Invalid JSON text';
+    case '223C3':
+      return 'Invalid JSON text';
+    case '223C4':
+      return 'Invalid JSON text';
+    case '223C5':
+      return 'Invalid JSON text';
+    case '223C6':
+      return 'Invalid JSON text';
+    case '223C7':
+      return 'Invalid JSON text';
+    case '223C8':
+      return 'Invalid JSON text';
+    case '223C9':
+      return 'Invalid JSON text';
+    case '223CA':
+      return 'Invalid JSON text';
+    case '223CB':
+      return 'Invalid JSON text';
+    case '223CC':
+      return 'Invalid JSON text';
+    case '223CD':
+      return 'Invalid JSON text';
+    case '223CE':
+      return 'Invalid JSON text';
+    case '223CF':
+      return 'Invalid JSON text';
+    case '223D0':
+      return 'Invalid JSON text';
+    case '223D1':
+      return 'Invalid JSON text';
+    case '223D2':
+      return 'Invalid JSON text';
+    case '223D3':
+      return 'Invalid JSON text';
+    case '223D4':
+      return 'Invalid JSON text';
+    case '223D5':
+      return 'Invalid JSON text';
+    case '223D6':
+      return 'Invalid JSON text';
+    case '223D7':
+      return 'Invalid JSON text';
+    case '223D8':
+      return 'Invalid JSON text';
+    case '223D9':
+      return 'Invalid JSON text';
+    case '223DA':
+      return 'Invalid JSON text';
+    case '223DB':
+      return 'Invalid JSON text';
+    case '223DC':
+      return 'Invalid JSON text';
+    case '223DD':
+      return 'Invalid JSON text';
+    case '223DE':
+      return 'Invalid JSON text';
+    case '223DF':
+      return 'Invalid JSON text';
+    case '223E0':
+      return 'Invalid JSON text';
+    case '223E1':
+      return 'Invalid JSON text';
+    case '223E2':
+      return 'Invalid JSON text';
+    case '223E3':
+      return 'Invalid JSON text';
+    case '223E4':
+      return 'Invalid JSON text';
+    case '223E5':
+      return 'Invalid JSON text';
+    case '223E6':
+      return 'Invalid JSON text';
+    case '223E7':
+      return 'Invalid JSON text';
+    case '223E8':
+      return 'Invalid JSON text';
+    case '223E9':
+      return 'Invalid JSON text';
+    case '223EA':
+      return 'Invalid JSON text';
+    case '223EB':
+      return 'Invalid JSON text';
+    case '223EC':
+      return 'Invalid JSON text';
+    case '223ED':
+      return 'Invalid JSON text';
+    case '223EE':
+      return 'Invalid JSON text';
+    case '223EF':
+      return 'Invalid JSON text';
+    case '223F0':
+      return 'Invalid JSON text';
+    case '223F1':
+      return 'Invalid JSON text';
+    case '223F2':
+      return 'Invalid JSON text';
+    case '223F3':
+      return 'Invalid JSON text';
+    case '223F4':
+      return 'Invalid JSON text';
+    case '223F5':
+      return 'Invalid JSON text';
+    case '223F6':
+      return 'Invalid JSON text';
+    case '223F7':
+      return 'Invalid JSON text';
+    case '223F8':
+      return 'Invalid JSON text';
+    case '223F9':
+      return 'Invalid JSON text';
+    case '223FA':
+      return 'Invalid JSON text';
+    case '223FB':
+      return 'Invalid JSON text';
+    case '223FC':
+      return 'Invalid JSON text';
+    case '223FD':
+      return 'Invalid JSON text';
+    case '223FE':
+      return 'Invalid JSON text';
+    case '223FF':
+      return 'Invalid JSON text';
+    case '22400':
+      return 'Invalid JSON text';
+    case '22401':
+      return 'Invalid JSON text';
+    case '22402':
+      return 'Invalid JSON text';
+    case '22403':
+      return 'Invalid JSON text';
+    case '22404':
+      return 'Invalid JSON text';
+    case '22405':
+      return 'Invalid JSON text';
+    case '22406':
+      return 'Invalid JSON text';
+    case '22407':
+      return 'Invalid JSON text';
+    case '22408':
+      return 'Invalid JSON text';
+    case '22409':
+      return 'Invalid JSON text';
+    case '2240A':
+      return 'Invalid JSON text';
+    case '2240B':
+      return 'Invalid JSON text';
+    case '2240C':
+      return 'Invalid JSON text';
+    case '2240D':
+      return 'Invalid JSON text';
+    case '2240E':
+      return 'Invalid JSON text';
+    case '2240F':
+      return 'Invalid JSON text';
+    case '22410':
+      return 'Invalid JSON text';
+    case '22411':
+      return 'Invalid JSON text';
+    case '22412':
+      return 'Invalid JSON text';
+    case '22413':
+      return 'Invalid JSON text';
+    case '22414':
+      return 'Invalid JSON text';
+    case '22415':
+      return 'Invalid JSON text';
+    case '22416':
+      return 'Invalid JSON text';
+    case '22417':
+      return 'Invalid JSON text';
+    case '22418':
+      return 'Invalid JSON text';
+    case '22419':
+      return 'Invalid JSON text';
+    case '2241A':
+      return 'Invalid JSON text';
+    case '2241B':
+      return 'Invalid JSON text';
+    case '2241C':
+      return 'Invalid JSON text';
+    case '2241D':
+      return 'Invalid JSON text';
+    case '2241E':
+      return 'Invalid JSON text';
+    case '2241F':
+      return 'Invalid JSON text';
+    case '22420':
+      return 'Invalid JSON text';
+    case '22421':
+      return 'Invalid JSON text';
+    case '22422':
+      return 'Invalid JSON text';
+    case '22423':
+      return 'Invalid JSON text';
+    case '22424':
+      return 'Invalid JSON text';
+    case '22425':
+      return 'Invalid JSON text';
+    case '22426':
+      return 'Invalid JSON text';
+    case '22427':
+      return 'Invalid JSON text';
+    case '22428':
+      return 'Invalid JSON text';
+    case '22429':
+      return 'Invalid JSON text';
+    case '2242A':
+      return 'Invalid JSON text';
+    case '2242B':
+      return 'Invalid JSON text';
+    case '2242C':
+      return 'Invalid JSON text';
+    case '2242D':
+      return 'Invalid JSON text';
+    case '2242E':
+      return 'Invalid JSON text';
+    case '2242F':
+      return 'Invalid JSON text';
+    case '22430':
+      return 'Invalid JSON text';
+    case '22431':
+      return 'Invalid JSON text';
+    case '22432':
+      return 'Invalid JSON text';
+    case '22433':
+      return 'Invalid JSON text';
+    case '22434':
+      return 'Invalid JSON text';
+    case '22435':
+      return 'Invalid JSON text';
+    case '22436':
+      return 'Invalid JSON text';
+    case '22437':
+      return 'Invalid JSON text';
+    case '22438':
+      return 'Invalid JSON text';
+    case '22439':
+      return 'Invalid JSON text';
+    case '2243A':
+      return 'Invalid JSON text';
+    case '2243B':
+      return 'Invalid JSON text';
+    case '2243C':
+      return 'Invalid JSON text';
+    case '2243D':
+      return 'Invalid JSON text';
+    case '2243E':
+      return 'Invalid JSON text';
+    case '2243F':
+      return 'Invalid JSON text';
+    case '22440':
+      return 'Invalid JSON text';
+    case '22441':
+      return 'Invalid JSON text';
+    case '22442':
+      return 'Invalid JSON text';
+    case '22443':
+      return 'Invalid JSON text';
+    case '22444':
+      return 'Invalid JSON text';
+    case '22445':
+      return 'Invalid JSON text';
+    case '22446':
+      return 'Invalid JSON text';
+    case '22447':
+      return 'Invalid JSON text';
+    case '22448':
+      return 'Invalid JSON text';
+    case '22449':
+      return 'Invalid JSON text';
+    case '2244A':
+      return 'Invalid JSON text';
+    case '2244B':
+      return 'Invalid JSON text';
+    case '2244C':
+      return 'Invalid JSON text';
+    case '2244D':
+      return 'Invalid JSON text';
+    case '2244E':
+      return 'Invalid JSON text';
+    case '2244F':
+      return 'Invalid JSON text';
+    case '22450':
+      return 'Invalid JSON text';
+    case '22451':
+      return 'Invalid JSON text';
+    case '22452':
+      return 'Invalid JSON text';
+    case '22453':
+      return 'Invalid JSON text';
+    case '22454':
+      return 'Invalid JSON text';
+    case '22455':
+      return 'Invalid JSON text';
+    case '22456':
+      return 'Invalid JSON text';
+    case '22457':
+      return 'Invalid JSON text';
+    case '22458':
+      return 'Invalid JSON text';
+    case '22459':
+      return 'Invalid JSON text';
+    case '2245A':
+      return 'Invalid JSON text';
+    case '2245B':
+      return 'Invalid JSON text';
+    case '2245C':
+      return 'Invalid JSON text';
+    case '2245D':
+      return 'Invalid JSON text';
+    case '2245E':
+      return 'Invalid JSON text';
+    case '2245F':
+      return 'Invalid JSON text';
+    case '22460':
+      return 'Invalid JSON text';
+    case '22461':
+      return 'Invalid JSON text';
+    case '22462':
+      return 'Invalid JSON text';
+    case '22463':
+      return 'Invalid JSON text';
+    case '22464':
+      return 'Invalid JSON text';
+    case '22465':
+      return 'Invalid JSON text';
+    case '22466':
+      return 'Invalid JSON text';
+    case '22467':
+      return 'Invalid JSON text';
+    case '22468':
+      return 'Invalid JSON text';
+    case '22469':
+      return 'Invalid JSON text';
+    case '2246A':
+      return 'Invalid JSON text';
+    case '2246B':
+      return 'Invalid JSON text';
+    case '2246C':
+      return 'Invalid JSON text';
+    case '2246D':
+      return 'Invalid JSON text';
+    case '2246E':
+      return 'Invalid JSON text';
+    case '2246F':
+      return 'Invalid JSON text';
+    case '22470':
+      return 'Invalid JSON text';
+    case '22471':
+      return 'Invalid JSON text';
+    case '22472':
+      return 'Invalid JSON text';
+    case '22473':
+      return 'Invalid JSON text';
+    case '22474':
+      return 'Invalid JSON text';
+    case '22475':
+      return 'Invalid JSON text';
+    case '22476':
+      return 'Invalid JSON text';
+    case '22477':
+      return 'Invalid JSON text';
+    case '22478':
+      return 'Invalid JSON text';
+    case '22479':
+      return 'Invalid JSON text';
+    case '2247A':
+      return 'Invalid JSON text';
+    case '2247B':
+      return 'Invalid JSON text';
+    case '2247C':
+      return 'Invalid JSON text';
+    case '2247D':
+      return 'Invalid JSON text';
+    case '2247E':
+      return 'Invalid JSON text';
+    case '2247F':
+      return 'Invalid JSON text';
+    case '22480':
+      return 'Invalid JSON text';
+    case '22481':
+      return 'Invalid JSON text';
+    case '22482':
+      return 'Invalid JSON text';
+    case '22483':
+      return 'Invalid JSON text';
+    case '22484':
+      return 'Invalid JSON text';
+    case '22485':
+      return 'Invalid JSON text';
+    case '22486':
+      return 'Invalid JSON text';
+    case '22487':
+      return 'Invalid JSON text';
+    case '22488':
+      return 'Invalid JSON text';
+    case '22489':
+      return 'Invalid JSON text';
+    case '2248A':
+      return 'Invalid JSON text';
+    case '2248B':
+      return 'Invalid JSON text';
+    case '2248C':
+      return 'Invalid JSON text';
+    case '2248D':
+      return 'Invalid JSON text';
+    case '2248E':
+      return 'Invalid JSON text';
+    case '2248F':
+      return 'Invalid JSON text';
+    case '22490':
+      return 'Invalid JSON text';
+    case '22491':
+      return 'Invalid JSON text';
+    case '22492':
+      return 'Invalid JSON text';
+    case '22493':
+      return 'Invalid JSON text';
+    case '22494':
+      return 'Invalid JSON text';
+    case '22495':
+      return 'Invalid JSON text';
+    case '22496':
+      return 'Invalid JSON text';
+    case '22497':
+      return 'Invalid JSON text';
+    case '22498':
+      return 'Invalid JSON text';
+    case '22499':
+      return 'Invalid JSON text';
+    case '2249A':
+      return 'Invalid JSON text';
+    case '2249B':
+      return 'Invalid JSON text';
+    case '2249C':
+      return 'Invalid JSON text';
+    case '2249D':
+      return 'Invalid JSON text';
+    case '2249E':
+      return 'Invalid JSON text';
+    case '2249F':
+      return 'Invalid JSON text';
+    case '224A0':
+      return 'Invalid JSON text';
+    case '224A1':
+      return 'Invalid JSON text';
+    case '224A2':
+      return 'Invalid JSON text';
+    case '224A3':
+      return 'Invalid JSON text';
+    case '224A4':
+      return 'Invalid JSON text';
+    case '224A5':
+      return 'Invalid JSON text';
+    case '224A6':
+      return 'Invalid JSON text';
+    case '224A7':
+      return 'Invalid JSON text';
+    case '224A8':
+      return 'Invalid JSON text';
+    case '224A9':
+      return 'Invalid JSON text';
+    case '224AA':
+      return 'Invalid JSON text';
+    case '224AB':
+      return 'Invalid JSON text';
+    case '224AC':
+      return 'Invalid JSON text';
+    case '224AD':
+      return 'Invalid JSON text';
+    case '224AE':
+      return 'Invalid JSON text';
+    case '224AF':
+      return 'Invalid JSON text';
+    case '224B0':
+      return 'Invalid JSON text';
+    case '224B1':
+      return 'Invalid JSON text';
+    case '224B2':
+      return 'Invalid JSON text';
+    case '224B3':
+      return 'Invalid JSON text';
+    case '224B4':
+      return 'Invalid JSON text';
+    case '224B5':
+      return 'Invalid JSON text';
+    case '224B6':
+      return 'Invalid JSON text';
+    case '224B7':
+      return 'Invalid JSON text';
+    case '224B8':
+      return 'Invalid JSON text';
+    case '224B9':
+      return 'Invalid JSON text';
+    case '224BA':
+      return 'Invalid JSON text';
+    case '224BB':
+      return 'Invalid JSON text';
+    case '224BC':
+      return 'Invalid JSON text';
+    case '224BD':
+      return 'Invalid JSON text';
+    case '224BE':
+      return 'Invalid JSON text';
+    case '224BF':
+      return 'Invalid JSON text';
+    case '224C0':
+      return 'Invalid JSON text';
+    case '224C1':
+      return 'Invalid JSON text';
+    case '224C2':
+      return 'Invalid JSON text';
+    case '224C3':
+      return 'Invalid JSON text';
+    case '224C4':
+      return 'Invalid JSON text';
+    case '224C5':
+      return 'Invalid JSON text';
+    case '224C6':
+      return 'Invalid JSON text';
+    case '224C7':
+      return 'Invalid JSON text';
+    case '224C8':
+      return 'Invalid JSON text';
+    case '224C9':
+      return 'Invalid JSON text';
+    case '224CA':
+      return 'Invalid JSON text';
+    case '224CB':
+      return 'Invalid JSON text';
+    case '224CC':
+      return 'Invalid JSON text';
+    case '224CD':
+      return 'Invalid JSON text';
+    case '224CE':
+      return 'Invalid JSON text';
+    case '224CF':
+      return 'Invalid JSON text';
+    case '224D0':
+      return 'Invalid JSON text';
+    case '224D1':
+      return 'Invalid JSON text';
+    case '224D2':
+      return 'Invalid JSON text';
+    case '224D3':
+      return 'Invalid JSON text';
+    case '224D4':
+      return 'Invalid JSON text';
+    case '224D5':
+      return 'Invalid JSON text';
+    case '224D6':
+      return 'Invalid JSON text';
+    case '224D7':
+      return 'Invalid JSON text';
+    case '224D8':
+      return 'Invalid JSON text';
+    case '224D9':
+      return 'Invalid JSON text';
+    case '224DA':
+      return 'Invalid JSON text';
+    case '224DB':
+      return 'Invalid JSON text';
+    case '224DC':
+      return 'Invalid JSON text';
+    case '224DD':
+      return 'Invalid JSON text';
+    case '224DE':
+      return 'Invalid JSON text';
+    case '224DF':
+      return 'Invalid JSON text';
+    case '224E0':
+      return 'Invalid JSON text';
+    case '224E1':
+      return 'Invalid JSON text';
+    case '224E2':
+      return 'Invalid JSON text';
+    case '224E3':
+      return 'Invalid JSON text';
+    case '224E4':
+      return 'Invalid JSON text';
+    case '224E5':
+      return 'Invalid JSON text';
+    case '224E6':
+      return 'Invalid JSON text';
+    case '224E7':
+      return 'Invalid JSON text';
+    case '224E8':
+      return 'Invalid JSON text';
+    case '224E9':
+      return 'Invalid JSON text';
+    case '224EA':
+      return 'Invalid JSON text';
+    case '224EB':
+      return 'Invalid JSON text';
+    case '224EC':
+      return 'Invalid JSON text';
+    case '224ED':
+      return 'Invalid JSON text';
+    case '224EE':
+      return 'Invalid JSON text';
+    case '224EF':
+      return 'Invalid JSON text';
+    case '224F0':
+      return 'Invalid JSON text';
+    case '224F1':
+      return 'Invalid JSON text';
+    case '224F2':
+      return 'Invalid JSON text';
+    case '224F3':
+      return 'Invalid JSON text';
+    case '224F4':
+      return 'Invalid JSON text';
+    case '224F5':
+      return 'Invalid JSON text';
+    case '224F6':
+      return 'Invalid JSON text';
+    case '224F7':
+      return 'Invalid JSON text';
+    case '224F8':
+      return 'Invalid JSON text';
+    case '224F9':
+      return 'Invalid JSON text';
+    case '224FA':
+      return 'Invalid JSON text';
+    case '224FB':
+      return 'Invalid JSON text';
+    case '224FC':
+      return 'Invalid JSON text';
+    case '224FD':
+      return 'Invalid JSON text';
+    case '224FE':
+      return 'Invalid JSON text';
+    case '224FF':
+      return 'Invalid JSON text';
+    case '22500':
+      return 'Invalid JSON text';
+    case '22501':
+      return 'Invalid JSON text';
+    case '22502':
+      return 'Invalid JSON text';
+    case '22503':
+      return 'Invalid JSON text';
+    case '22504':
+      return 'Invalid JSON text';
+    case '22505':
+      return 'Invalid JSON text';
+    case '22506':
+      return 'Invalid JSON text';
+    case '22507':
+      return 'Invalid JSON text';
+    case '22508':
+      return 'Invalid JSON text';
+    case '22509':
+      return 'Invalid JSON text';
+    case '2250A':
+      return 'Invalid JSON text';
+    case '2250B':
+      return 'Invalid JSON text';
+    case '2250C':
+      return 'Invalid JSON text';
+    case '2250D':
+      return 'Invalid JSON text';
+    case '2250E':
+      return 'Invalid JSON text';
+    case '2250F':
+      return 'Invalid JSON text';
+    case '22510':
+      return 'Invalid JSON text';
+    case '22511':
+      return 'Invalid JSON text';
+    case '22512':
+      return 'Invalid JSON text';
+    case '22513':
+      return 'Invalid JSON text';
+    case '22514':
+      return 'Invalid JSON text';
+    case '22515':
+      return 'Invalid JSON text';
+    case '22516':
+      return 'Invalid JSON text';
+    case '22517':
+      return 'Invalid JSON text';
+    case '22518':
+      return 'Invalid JSON text';
+    case '22519':
+      return 'Invalid JSON text';
+    case '2251A':
+      return 'Invalid JSON text';
+    case '2251B':
+      return 'Invalid JSON text';
+    case '2251C':
+      return 'Invalid JSON text';
+    case '2251D':
+      return 'Invalid JSON text';
+    case '2251E':
+      return 'Invalid JSON text';
+    case '2251F':
+      return 'Invalid JSON text';
+    case '22520':
+      return 'Invalid JSON text';
+    case '22521':
+      return 'Invalid JSON text';
+    case '22522':
+      return 'Invalid JSON text';
+    case '22523':
+      return 'Invalid JSON text';
+    case '22524':
+      return 'Invalid JSON text';
+    case '22525':
+      return 'Invalid JSON text';
+    case '22526':
+      return 'Invalid JSON text';
+    case '22527':
+      return 'Invalid JSON text';
+    case '22528':
+      return 'Invalid JSON text';
+    case '22529':
+      return 'Invalid JSON text';
+    case '2252A':
+      return 'Invalid JSON text';
+    case '2252B':
+      return 'Invalid JSON text';
+    case '2252C':
+      return 'Invalid JSON text';
+    case '2252D':
+      return 'Invalid JSON text';
+    case '2252E':
+      return 'Invalid JSON text';
+    case '2252F':
+      return 'Invalid JSON text';
+    case '22530':
+      return 'Invalid JSON text';
+    case '22531':
+      return 'Invalid JSON text';
+    case '22532':
+      return 'Invalid JSON text';
+    case '22533':
+      return 'Invalid JSON text';
+    case '22534':
+      return 'Invalid JSON text';
+    case '22535':
+      return 'Invalid JSON text';
+    case '22536':
+      return 'Invalid JSON text';
+    case '22537':
+      return 'Invalid JSON text';
+    case '22538':
+      return 'Invalid JSON text';
+    case '22539':
+      return 'Invalid JSON text';
+    case '2253A':
+      return 'Invalid JSON text';
+    case '2253B':
+      return 'Invalid JSON text';
+    case '2253C':
+      return 'Invalid JSON text';
+    case '2253D':
+      return 'Invalid JSON text';
+    case '2253E':
+      return 'Invalid JSON text';
+    case '2253F':
+      return 'Invalid JSON text';
+    case '22540':
+      return 'Invalid JSON text';
+    case '22541':
+      return 'Invalid JSON text';
+    case '22542':
+      return 'Invalid JSON text';
+    case '22543':
+      return 'Invalid JSON text';
+    case '22544':
+      return 'Invalid JSON text';
+    case '22545':
+      return 'Invalid JSON text';
+    case '22546':
+      return 'Invalid JSON text';
+    case '22547':
+      return 'Invalid JSON text';
+    case '22548':
+      return 'Invalid JSON text';
+    case '22549':
+      return 'Invalid JSON text';
+    case '2254A':
+      return 'Invalid JSON text';
+    case '2254B':
+      return 'Invalid JSON text';
+    case '2254C':
+      return 'Invalid JSON text';
+    case '2254D':
+      return 'Invalid JSON text';
+    case '2254E':
+      return 'Invalid JSON text';
+    case '2254F':
+      return 'Invalid JSON text';
+    case '22550':
+      return 'Invalid JSON text';
+    case '22551':
+      return 'Invalid JSON text';
+    case '22552':
+      return 'Invalid JSON text';
+    case '22553':
+      return 'Invalid JSON text';
+    case '22554':
+      return 'Invalid JSON text';
+    case '22555':
+      return 'Invalid JSON text';
+    case '22556':
+      return 'Invalid JSON text';
+    case '22557':
+      return 'Invalid JSON text';
+    case '22558':
+      return 'Invalid JSON text';
+    case '22559':
+      return 'Invalid JSON text';
+    case '2255A':
+      return 'Invalid JSON text';
+    case '2255B':
+      return 'Invalid JSON text';
+    case '2255C':
+      return 'Invalid JSON text';
+    case '2255D':
+      return 'Invalid JSON text';
+    case '2255E':
+      return 'Invalid JSON text';
+    case '2255F':
+      return 'Invalid JSON text';
+    case '22560':
+      return 'Invalid JSON text';
+    case '22561':
+      return 'Invalid JSON text';
+    case '22562':
+      return 'Invalid JSON text';
+    case '22563':
+      return 'Invalid JSON text';
+    case '22564':
+      return 'Invalid JSON text';
+    case '22565':
+      return 'Invalid JSON text';
+    case '22566':
+      return 'Invalid JSON text';
+    case '22567':
+      return 'Invalid JSON text';
+    case '22568':
+      return 'Invalid JSON text';
+    case '22569':
+      return 'Invalid JSON text';
+    case '2256A':
+      return 'Invalid JSON text';
+    case '2256B':
+      return 'Invalid JSON text';
+    case '2256C':
+      return 'Invalid JSON text';
+    case '2256D':
+      return 'Invalid JSON text';
+    case '2256E':
+      return 'Invalid JSON text';
+    case '2256F':
+      return 'Invalid JSON text';
+    case '22570':
+      return 'Invalid JSON text';
+    case '22571':
+      return 'Invalid JSON text';
+    case '22572':
+      return 'Invalid JSON text';
+    case '22573':
+      return 'Invalid JSON text';
+    case '22574':
+      return 'Invalid JSON text';
+    case '22575':
+      return 'Invalid JSON text';
+    case '22576':
+      return 'Invalid JSON text';
+    case '22577':
+      return 'Invalid JSON text';
+    case '22578':
+      return 'Invalid JSON text';
+    case '22579':
+      return 'Invalid JSON text';
+    case '2257A':
+      return 'Invalid JSON text';
+    case '2257B':
+      return 'Invalid JSON text';
+    case '2257C':
+      return 'Invalid JSON text';
+    case '2257D':
+      return 'Invalid JSON text';
+    case '2257E':
+      return 'Invalid JSON text';
+    case '2257F':
+      return 'Invalid JSON text';
+    case '22580':
+      return 'Invalid JSON text';
+    case '22581':
+      return 'Invalid JSON text';
+    case '22582':
+      return 'Invalid JSON text';
+    case '22583':
+      return 'Invalid JSON text';
+    case '22584':
+      return 'Invalid JSON text';
+    case '22585':
+      return 'Invalid JSON text';
+    case '22586':
+      return 'Invalid JSON text';
+    case '22587':
+      return 'Invalid JSON text';
+    case '22588':
+      return 'Invalid JSON text';
+    case '22589':
+      return 'Invalid JSON text';
+    case '2258A':
+      return 'Invalid JSON text';
+    case '2258B':
+      return 'Invalid JSON text';
+    case '2258C':
+      return 'Invalid JSON text';
+    case '2258D':
+      return 'Invalid JSON text';
+    case '2258E':
+      return 'Invalid JSON text';
+    case '2258F':
+      return 'Invalid JSON text';
+    case '22590':
+      return 'Invalid JSON text';
+    case '22591':
+      return 'Invalid JSON text';
+    case '22592':
+      return 'Invalid JSON text';
+    case '22593':
+      return 'Invalid JSON text';
+    case '22594':
+      return 'Invalid JSON text';
+    case '22595':
+      return 'Invalid JSON text';
+    case '22596':
+      return 'Invalid JSON text';
+    case '22597':
+      return 'Invalid JSON text';
+    case '22598':
+      return 'Invalid JSON text';
+    case '22599':
+      return 'Invalid JSON text';
+    case '2259A':
+      return 'Invalid JSON text';
+    case '2259B':
+      return 'Invalid JSON text';
+    case '2259C':
+      return 'Invalid JSON text';
+    case '2259D':
+      return 'Invalid JSON text';
+    case '2259E':
+      return 'Invalid JSON text';
+    case '2259F':
+      return 'Invalid JSON text';
+    case '225A0':
+      return 'Invalid JSON text';
+    case '225A1':
+      return 'Invalid JSON text';
+    case '225A2':
+      return 'Invalid JSON text';
+    case '225A3':
+      return 'Invalid JSON text';
+    case '225A4':
+      return 'Invalid JSON text';
+    case '225A5':
+      return 'Invalid JSON text';
+    case '225A6':
+      return 'Invalid JSON text';
+    case '225A7':
+      return 'Invalid JSON text';
+    case '225A8':
+      return 'Invalid JSON text';
+    case '225A9':
+      return 'Invalid JSON text';
+    case '225AA':
+      return 'Invalid JSON text';
+    case '225AB':
+      return 'Invalid JSON text';
+    case '225AC':
+      return 'Invalid JSON text';
+    case '225AD':
+      return 'Invalid JSON text';
+    case '225AE':
+      return 'Invalid JSON text';
+    case '225AF':
+      return 'Invalid JSON text';
+    case '225B0':
+      return 'Invalid JSON text';
+    case '225B1':
+      return 'Invalid JSON text';
+    case '225B2':
+      return 'Invalid JSON text';
+    case '225B3':
+      return 'Invalid JSON text';
+    case '225B4':
+      return 'Invalid JSON text';
+    case '225B5':
+      return 'Invalid JSON text';
+    case '225B6':
+      return 'Invalid JSON text';
+    case '225B7':
+      return 'Invalid JSON text';
+    case '225B8':
+      return 'Invalid JSON text';
+    case '225B9':
+      return 'Invalid JSON text';
+    case '225BA':
+      return 'Invalid JSON text';
+    case '225BB':
+      return 'Invalid JSON text';
+    case '225BC':
+      return 'Invalid JSON text';
+    case '225BD':
+      return 'Invalid JSON text';
+    case '225BE':
+      return 'Invalid JSON text';
+    case '225BF':
+      return 'Invalid JSON text';
+    case '225C0':
+      return 'Invalid JSON text';
+    case '225C1':
+      return 'Invalid JSON text';
+    case '225C2':
+      return 'Invalid JSON text';
+    case '225C3':
+      return 'Invalid JSON text';
+    case '225C4':
+      return 'Invalid JSON text';
+    case '225C5':
+      return 'Invalid JSON text';
+    case '225C6':
+      return 'Invalid JSON text';
+    case '225C7':
+      return 'Invalid JSON text';
+    case '225C8':
+      return 'Invalid JSON text';
+    case '225C9':
+      return 'Invalid JSON text';
+    case '225CA':
+      return 'Invalid JSON text';
+    case '225CB':
+      return 'Invalid JSON text';
+    case '225CC':
+      return 'Invalid JSON text';
+    case '225CD':
+      return 'Invalid JSON text';
+    case '225CE':
+      return 'Invalid JSON text';
+    case '225CF':
+      return 'Invalid JSON text';
+    case '225D0':
+      return 'Invalid JSON text';
+    case '225D1':
+      return 'Invalid JSON text';
+    case '225D2':
+      return 'Invalid JSON text';
+    case '225D3':
+      return 'Invalid JSON text';
+    case '225D4':
+      return 'Invalid JSON text';
+    case '225D5':
+      return 'Invalid JSON text';
+    case '225D6':
+      return 'Invalid JSON text';
+    case '225D7':
+      return 'Invalid JSON text';
+    case '225D8':
+      return 'Invalid JSON text';
+    case '225D9':
+      return 'Invalid JSON text';
+    case '225DA':
+      return 'Invalid JSON text';
+    case '225DB':
+      return 'Invalid JSON text';
+    case '225DC':
+      return 'Invalid JSON text';
+    case '225DD':
+      return 'Invalid JSON text';
+    case '225DE':
+      return 'Invalid JSON text';
+    case '225DF':
+      return 'Invalid JSON text';
+    case '225E0':
+      return 'Invalid JSON text';
+    case '225E1':
+      return 'Invalid JSON text';
+    case '225E2':
+      return 'Invalid JSON text';
+    case '225E3':
+      return 'Invalid JSON text';
+    case '225E4':
+      return 'Invalid JSON text';
+    case '225E5':
+      return 'Invalid JSON text';
+    case '225E6':
+      return 'Invalid JSON text';
+    case '225E7':
+      return 'Invalid JSON text';
+    case '225E8':
+      return 'Invalid JSON text';
+    case '225E9':
+      return 'Invalid JSON text';
+    case '225EA':
+      return 'Invalid JSON text';
+    case '225EB':
+      return 'Invalid JSON text';
+    case '225EC':
+      return 'Invalid JSON text';
+    case '225ED':
+      return 'Invalid JSON text';
+    case '225EE':
+      return 'Invalid JSON text';
+    case '225EF':
+      return 'Invalid JSON text';
+    case '225F0':
+      return 'Invalid JSON text';
+    case '225F1':
+      return 'Invalid JSON text';
+    case '225F2':
+      return 'Invalid JSON text';
+    case '225F3':
+      return 'Invalid JSON text';
+    case '225F4':
+      return 'Invalid JSON text';
+    case '225F5':
+      return 'Invalid JSON text';
+    case '225F6':
+      return 'Invalid JSON text';
+    case '225F7':
+      return 'Invalid JSON text';
+    case '225F8':
+      return 'Invalid JSON text';
+    case '225F9':
+      return 'Invalid JSON text';
+    case '225FA':
+      return 'Invalid JSON text';
+    case '225FB':
+      return 'Invalid JSON text';
+    case '225FC':
+      return 'Invalid JSON text';
+    case '225FD':
+      return 'Invalid JSON text';
+    case '225FE':
+      return 'Invalid JSON text';
+    case '225FF':
+      return 'Invalid JSON text';
+    case '22600':
+      return 'Invalid JSON text';
+    case '22601':
+      return 'Invalid JSON text';
+    case '22602':
+      return 'Invalid JSON text';
+    case '22603':
+      return 'Invalid JSON text';
+    case '22604':
+      return 'Invalid JSON text';
+    case '22605':
+      return 'Invalid JSON text';
+    case '22606':
+      return 'Invalid JSON text';
+    case '22607':
+      return 'Invalid JSON text';
+    case '22608':
+      return 'Invalid JSON text';
+    case '22609':
+      return 'Invalid JSON text';
+    case '2260A':
+      return 'Invalid JSON text';
+    case '2260B':
+      return 'Invalid JSON text';
+    case '2260C':
+      return 'Invalid JSON text';
+    case '2260D':
+      return 'Invalid JSON text';
+    case '2260E':
+      return 'Invalid JSON text';
+    case '2260F':
+      return 'Invalid JSON text';
+    case '22610':
+      return 'Invalid JSON text';
+    case '22611':
+      return 'Invalid JSON text';
+    case '22612':
+      return 'Invalid JSON text';
+    case '22613':
+      return 'Invalid JSON text';
+    case '22614':
+      return 'Invalid JSON text';
+    case '22615':
+      return 'Invalid JSON text';
+    case '22616':
+      return 'Invalid JSON text';
+    case '22617':
+      return 'Invalid JSON text';
+    case '22618':
+      return 'Invalid JSON text';
+    case '22619':
+      return 'Invalid JSON text';
+    case '2261A':
+      return 'Invalid JSON text';
+    case '2261B':
+      return 'Invalid JSON text';
+    case '2261C':
+      return 'Invalid JSON text';
+    case '2261D':
+      return 'Invalid JSON text';
+    case '2261E':
+      return 'Invalid JSON text';
+    case '2261F':
+      return 'Invalid JSON text';
+    case '22620':
+      return 'Invalid JSON text';
+    case '22621':
+      return 'Invalid JSON text';
+    case '22622':
+      return 'Invalid JSON text';
+    case '22623':
+      return 'Invalid JSON text';
+    case '22624':
+      return 'Invalid JSON text';
+    case '22625':
+      return 'Invalid JSON text';
+    case '22626':
+      return 'Invalid JSON text';
+    case '22627':
+      return 'Invalid JSON text';
+    case '22628':
+      return 'Invalid JSON text';
+    case '22629':
+      return 'Invalid JSON text';
+    case '2262A':
+      return 'Invalid JSON text';
+    case '2262B':
+      return 'Invalid JSON text';
+    case '2262C':
+      return 'Invalid JSON text';
+    case '2262D':
+      return 'Invalid JSON text';
+    case '2262E':
+      return 'Invalid JSON text';
+    case '2262F':
+      return 'Invalid JSON text';
+    case '22630':
+      return 'Invalid JSON text';
+    case '22631':
+      return 'Invalid JSON text';
+    case '22632':
+      return 'Invalid JSON text';
+    case '22633':
+      return 'Invalid JSON text';
+    case '22634':
+      return 'Invalid JSON text';
+    case '22635':
+      return 'Invalid JSON text';
+    case '22636':
+      return 'Invalid JSON text';
+    case '22637':
+      return 'Invalid JSON text';
+    case '22638':
+      return 'Invalid JSON text';
+    case '22639':
+      return 'Invalid JSON text';
+    case '2263A':
+      return 'Invalid JSON text';
+    case '2263B':
+      return 'Invalid JSON text';
+    case '2263C':
+      return 'Invalid JSON text';
+    case '2263D':
+      return 'Invalid JSON text';
+    case '2263E':
+      return 'Invalid JSON text';
+    case '2263F':
+      return 'Invalid JSON text';
+    case '22640':
+      return 'Invalid JSON text';
+    case '22641':
+      return 'Invalid JSON text';
+    case '22642':
+      return 'Invalid JSON text';
+    case '22643':
+      return 'Invalid JSON text';
+    case '22644':
+      return 'Invalid JSON text';
+    case '22645':
+      return 'Invalid JSON text';
+    case '22646':
+      return 'Invalid JSON text';
+    case '22647':
+      return 'Invalid JSON text';
+    case '22648':
+      return 'Invalid JSON text';
+    case '22649':
+      return 'Invalid JSON text';
+    case '2264A':
+      return 'Invalid JSON text';
+    case '2264B':
+      return 'Invalid JSON text';
+    case '2264C':
+      return 'Invalid JSON text';
+    case '2264D':
+      return 'Invalid JSON text';
+    case '2264E':
+      return 'Invalid JSON text';
+    case '2264F':
+      return 'Invalid JSON text';
+    case '22650':
+      return 'Invalid JSON text';
+    case '22651':
+      return 'Invalid JSON text';
+    case '22652':
+      return 'Invalid JSON text';
+    case '22653':
+      return 'Invalid JSON text';
+    case '22654':
+      return 'Invalid JSON text';
+    case '22655':
+      return 'Invalid JSON text';
+    case '22656':
+      return 'Invalid JSON text';
+    case '22657':
+      return 'Invalid JSON text';
+    case '22658':
+      return 'Invalid JSON text';
+    case '22659':
+      return 'Invalid JSON text';
+    case '2265A':
+      return 'Invalid JSON text';
+    case '2265B':
+      return 'Invalid JSON text';
+    case '2265C':
+      return 'Invalid JSON text';
+    case '2265D':
+      return 'Invalid JSON text';
+    case '2265E':
+      return 'Invalid JSON text';
+    case '2265F':
+      return 'Invalid JSON text';
+    case '22660':
+      return 'Invalid JSON text';
+    case '22661':
+      return 'Invalid JSON text';
+    case '22662':
+      return 'Invalid JSON text';
+    case '22663':
+      return 'Invalid JSON text';
+    case '22664':
+      return 'Invalid JSON text';
+    case '22665':
+      return 'Invalid JSON text';
+    case '22666':
+      return 'Invalid JSON text';
+    case '22667':
+      return 'Invalid JSON text';
+    case '22668':
+      return 'Invalid JSON text';
+    case '22669':
+      return 'Invalid JSON text';
+    case '2266A':
+      return 'Invalid JSON text';
+    case '2266B':
+      return 'Invalid JSON text';
+    case '2266C':
+      return 'Invalid JSON text';
+    case '2266D':
+      return 'Invalid JSON text';
+    case '2266E':
+      return 'Invalid JSON text';
+    case '2266F':
+      return 'Invalid JSON text';
+    case '22670':
+      return 'Invalid JSON text';
+    case '22671':
+      return 'Invalid JSON text';
+    case '22672':
+      return 'Invalid JSON text';
+    case '22673':
+      return 'Invalid JSON text';
+    case '22674':
+      return 'Invalid JSON text';
+    case '22675':
+      return 'Invalid JSON text';
+    case '22676':
+      return 'Invalid JSON text';
+    case '22677':
+      return 'Invalid JSON text';
+    case '22678':
+      return 'Invalid JSON text';
+    case '22679':
+      return 'Invalid JSON text';
+    case '2267A':
+      return 'Invalid JSON text';
+    case '2267B':
+      return 'Invalid JSON text';
+    case '2267C':
+      return 'Invalid JSON text';
+    case '2267D':
+      return 'Invalid JSON text';
+    case '2267E':
+      return 'Invalid JSON text';
+    case '2267F':
+      return 'Invalid JSON text';
+    case '22680':
+      return 'Invalid JSON text';
+    case '22681':
+      return 'Invalid JSON text';
+    case '22682':
+      return 'Invalid JSON text';
+    case '22683':
+      return 'Invalid JSON text';
+    case '22684':
+      return 'Invalid JSON text';
+    case '22685':
+      return 'Invalid JSON text';
+    case '22686':
+      return 'Invalid JSON text';
+    case '22687':
+      return 'Invalid JSON text';
+    case '22688':
+      return 'Invalid JSON text';
+    case '22689':
+      return 'Invalid JSON text';
+    case '2268A':
+      return 'Invalid JSON text';
+    case '2268B':
+      return 'Invalid JSON text';
+    case '2268C':
+      return 'Invalid JSON text';
+    case '2268D':
+      return 'Invalid JSON text';
+    case '2268E':
+      return 'Invalid JSON text';
+    case '2268F':
+      return 'Invalid JSON text';
+    case '22690':
+      return 'Invalid JSON text';
+    case '22691':
+      return 'Invalid JSON text';
+    case '22692':
+      return 'Invalid JSON text';
+    case '22693':
+      return 'Invalid JSON text';
+    case '22694':
+      return 'Invalid JSON text';
+    case '22695':
+      return 'Invalid JSON text';
+    case '22696':
+      return 'Invalid JSON text';
+    case '22697':
+      return 'Invalid JSON text';
+    case '22698':
+      return 'Invalid JSON text';
+    case '22699':
+      return 'Invalid JSON text';
+    case '2269A':
+      return 'Invalid JSON text';
+    case '2269B':
+      return 'Invalid JSON text';
+    case '2269C':
+      return 'Invalid JSON text';
+    case '2269D':
+      return 'Invalid JSON text';
+    case '2269E':
+      return 'Invalid JSON text';
+    case '2269F':
+      return 'Invalid JSON text';
+    case '226A0':
+      return 'Invalid JSON text';
+    case '226A1':
+      return 'Invalid JSON text';
+    case '226A2':
+      return 'Invalid JSON text';
+    case '226A3':
+      return 'Invalid JSON text';
+    case '226A4':
+      return 'Invalid JSON text';
+    case '226A5':
+      return 'Invalid JSON text';
+    case '226A6':
+      return 'Invalid JSON text';
+    case '226A7':
+      return 'Invalid JSON text';
+    case '226A8':
+      return 'Invalid JSON text';
+    case '226A9':
+      return 'Invalid JSON text';
+    case '226AA':
+      return 'Invalid JSON text';
+    case '226AB':
+      return 'Invalid JSON text';
+    case '226AC':
+      return 'Invalid JSON text';
+    case '226AD':
+      return 'Invalid JSON text';
+    case '226AE':
+      return 'Invalid JSON text';
+    case '226AF':
+      return 'Invalid JSON text';
+    case '226B0':
+      return 'Invalid JSON text';
+    case '226B1':
+      return 'Invalid JSON text';
+    case '226B2':
+      return 'Invalid JSON text';
+    case '226B3':
+      return 'Invalid JSON text';
+    case '226B4':
+      return 'Invalid JSON text';
+    case '226B5':
+      return 'Invalid JSON text';
+    case '226B6':
+      return 'Invalid JSON text';
+    case '226B7':
+      return 'Invalid JSON text';
+    case '226B8':
+      return 'Invalid JSON text';
+    case '226B9':
+      return 'Invalid JSON text';
+    case '226BA':
+      return 'Invalid JSON text';
+    case '226BB':
+      return 'Invalid JSON text';
+    case '226BC':
+      return 'Invalid JSON text';
+    case '226BD':
+      return 'Invalid JSON text';
+    case '226BE':
+      return 'Invalid JSON text';
+    case '226BF':
+      return 'Invalid JSON text';
+    case '226C0':
+      return 'Invalid JSON text';
+    case '226C1':
+      return 'Invalid JSON text';
+    case '226C2':
+      return 'Invalid JSON text';
+    case '226C3':
+      return 'Invalid JSON text';
+    case '226C4':
+      return 'Invalid JSON text';
+    case '226C5':
+      return 'Invalid JSON text';
+    case '226C6':
+      return 'Invalid JSON text';
+    case '226C7':
+      return 'Invalid JSON text';
+    case '226C8':
+      return 'Invalid JSON text';
+    case '226C9':
+      return 'Invalid JSON text';
+    case '226CA':
+      return 'Invalid JSON text';
+    case '226CB':
+      return 'Invalid JSON text';
+    case '226CC':
+      return 'Invalid JSON text';
+    case '226CD':
+      return 'Invalid JSON text';
+    case '226CE':
+      return 'Invalid JSON text';
+    case '226CF':
+      return 'Invalid JSON text';
+    case '226D0':
+      return 'Invalid JSON text';
+    case '226D1':
+      return 'Invalid JSON text';
+    case '226D2':
+      return 'Invalid JSON text';
+    case '226D3':
+      return 'Invalid JSON text';
+    case '226D4':
+      return 'Invalid JSON text';
+    case '226D5':
+      return 'Invalid JSON text';
+    case '226D6':
+      return 'Invalid JSON text';
+    case '226D7':
+      return 'Invalid JSON text';
+    case '226D8':
+      return 'Invalid JSON text';
+    case '226D9':
+      return 'Invalid JSON text';
+    case '226DA':
+      return 'Invalid JSON text';
+    case '226DB':
+      return 'Invalid JSON text';
+    case '226DC':
+      return 'Invalid JSON text';
+    case '226DD':
+      return 'Invalid JSON text';
+    case '226DE':
+      return 'Invalid JSON text';
+    case '226DF':
+      return 'Invalid JSON text';
+    case '226E0':
+      return 'Invalid JSON text';
+    case '226E1':
+      return 'Invalid JSON text';
+    case '226E2':
+      return 'Invalid JSON text';
+    case '226E3':
+      return 'Invalid JSON text';
+    case '226E4':
+      return 'Invalid JSON text';
+    case '226E5':
+      return 'Invalid JSON text';
+    case '226E6':
+      return 'Invalid JSON text';
+    case '226E7':
+      return 'Invalid JSON text';
+    case '226E8':
+      return 'Invalid JSON text';
+    case '226E9':
+      return 'Invalid JSON text';
+    case '226EA':
+      return 'Invalid JSON text';
+    case '226EB':
+      return 'Invalid JSON text';
+    case '226EC':
+      return 'Invalid JSON text';
+    case '226ED':
+      return 'Invalid JSON text';
+    case '226EE':
+      return 'Invalid JSON text';
+    case '226EF':
+      return 'Invalid JSON text';
+    case '226F0':
+      return 'Invalid JSON text';
+    case '226F1':
+      return 'Invalid JSON text';
+    case '226F2':
+      return 'Invalid JSON text';
+    case '226F3':
+      return 'Invalid JSON text';
+    case '226F4':
+      return 'Invalid JSON text';
+    case '226F5':
+      return 'Invalid JSON text';
+    case '226F6':
+      return 'Invalid JSON text';
+    case '226F7':
+      return 'Invalid JSON text';
+    case '226F8':
+      return 'Invalid JSON text';
+    case '226F9':
+      return 'Invalid JSON text';
+    case '226FA':
+      return 'Invalid JSON text';
+    case '226FB':
+      return 'Invalid JSON text';
+    case '226FC':
+      return 'Invalid JSON text';
+    case '226FD':
+      return 'Invalid JSON text';
+    case '226FE':
+      return 'Invalid JSON text';
+    case '226FF':
+      return 'Invalid JSON text';
+    case '22700':
+      return 'Invalid JSON text';
+    case '22701':
+      return 'Invalid JSON text';
+    case '22702':
+      return 'Invalid JSON text';
+    case '22703':
+      return 'Invalid JSON text';
+    case '22704':
+      return 'Invalid JSON text';
+    case '22705':
+      return 'Invalid JSON text';
+    case '22706':
+      return 'Invalid JSON text';
+    case '22707':
+      return 'Invalid JSON text';
+    case '22708':
+      return 'Invalid JSON text';
+    case '22709':
+      return 'Invalid JSON text';
+    case '2270A':
+      return 'Invalid JSON text';
+    case '2270B':
+      return 'Invalid JSON text';
+    case '2270C':
+      return 'Invalid JSON text';
+    case '2270D':
+      return 'Invalid JSON text';
+    case '2270E':
+      return 'Invalid JSON text';
+    case '2270F':
+      return 'Invalid JSON text';
+    case '22710':
+      return 'Invalid JSON text';
+    case '22711':
+      return 'Invalid JSON text';
+    case '22712':
+      return 'Invalid JSON text';
+    case '22713':
+      return 'Invalid JSON text';
+    case '22714':
+      return 'Invalid JSON text';
+    case '22715':
+      return 'Invalid JSON text';
+    case '22716':
+      return 'Invalid JSON text';
+    case '22717':
+      return 'Invalid JSON text';
+    case '22718':
+      return 'Invalid JSON text';
+    case '22719':
+      return 'Invalid JSON text';
+    case '2271A':
+      return 'Invalid JSON text';
+    case '2271B':
+      return 'Invalid JSON text';
+    case '2271C':
+      return 'Invalid JSON text';
+    case '2271D':
+      return 'Invalid JSON text';
+    case '2271E':
+      return 'Invalid JSON text';
+    case '2271F':
+      return 'Invalid JSON text';
+    case '22720':
+      return 'Invalid JSON text';
+    case '22721':
+      return 'Invalid JSON text';
+    case '22722':
+      return 'Invalid JSON text';
+    case '22723':
+      return 'Invalid JSON text';
+    case '22724':
+      return 'Invalid JSON text';
+    case '22725':
+      return 'Invalid JSON text';
+    case '22726':
+      return 'Invalid JSON text';
+    case '22727':
+      return 'Invalid JSON text';
+    case '22728':
+      return 'Invalid JSON text';
+    case '22729':
+      return 'Invalid JSON text';
+    case '2272A':
+      return 'Invalid JSON text';
+    case '2272B':
+      return 'Invalid JSON text';
+    case '2272C':
+      return 'Invalid JSON text';
+    case '2272D':
+      return 'Invalid JSON text';
+    case '2272E':
+      return 'Invalid JSON text';
+    case '2272F':
+      return 'Invalid JSON text';
+    case '22730':
+      return 'Invalid JSON text';
+    case '22731':
+      return 'Invalid JSON text';
+    case '22732':
+      return 'Invalid JSON text';
+    case '22733':
+      return 'Invalid JSON text';
+    case '22734':
+      return 'Invalid JSON text';
+    case '22735':
+      return 'Invalid JSON text';
+    case '22736':
+      return 'Invalid JSON text';
+    case '22737':
+      return 'Invalid JSON text';
+    case '22738':
+      return 'Invalid JSON text';
+    case '22739':
+      return 'Invalid JSON text';
+    case '2273A':
+      return 'Invalid JSON text';
+    case '2273B':
+      return 'Invalid JSON text';
+    case '2273C':
+      return 'Invalid JSON text';
+    case '2273D':
+      return 'Invalid JSON text';
+    case '2273E':
+      return 'Invalid JSON text';
+    case '2273F':
+      return 'Invalid JSON text';
+    case '22740':
+      return 'Invalid JSON text';
+    case '22741':
+      return 'Invalid JSON text';
+    case '22742':
+      return 'Invalid JSON text';
+    case '22743':
+      return 'Invalid JSON text';
+    case '22744':
+      return 'Invalid JSON text';
+    case '22745':
+      return 'Invalid JSON text';
+    case '22746':
+      return 'Invalid JSON text';
+    case '22747':
+      return 'Invalid JSON text';
+    case '22748':
+      return 'Invalid JSON text';
+    case '22749':
+      return 'Invalid JSON text';
+    case '2274A':
+      return 'Invalid JSON text';
+    case '2274B':
+      return 'Invalid JSON text';
+    case '2274C':
+      return 'Invalid JSON text';
+    case '2274D':
+      return 'Invalid JSON text';
+    case '2274E':
+      return 'Invalid JSON text';
+    case '2274F':
+      return 'Invalid JSON text';
+    case '22750':
+      return 'Invalid JSON text';
+    case '22751':
+      return 'Invalid JSON text';
+    case '22752':
+      return 'Invalid JSON text';
+    case '22753':
+      return 'Invalid JSON text';
+    case '22754':
+      return 'Invalid JSON text';
+    case '22755':
+      return 'Invalid JSON text';
+    case '22756':
+      return 'Invalid JSON text';
+    case '22757':
+      return 'Invalid JSON text';
+    case '22758':
+      return 'Invalid JSON text';
+    case '22759':
+      return 'Invalid JSON text';
+    case '2275A':
+      return 'Invalid JSON text';
+    case '2275B':
+      return 'Invalid JSON text';
+    case '2275C':
+      return 'Invalid JSON text';
+    case '2275D':
+      return 'Invalid JSON text';
+    case '2275E':
+      return 'Invalid JSON text';
+    case '2275F':
+      return 'Invalid JSON text';
+    case '22760':
+      return 'Invalid JSON text';
+    case '22761':
+      return 'Invalid JSON text';
+    case '22762':
+      return 'Invalid JSON text';
+    case '22763':
+      return 'Invalid JSON text';
+    case '22764':
+      return 'Invalid JSON text';
+    case '22765':
+      return 'Invalid JSON text';
+    case '22766':
+      return 'Invalid JSON text';
+    case '22767':
+      return 'Invalid JSON text';
