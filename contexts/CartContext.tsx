@@ -1,19 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
-import { formatPrice } from '@/utils/currency';
-
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-};
-
-type CartItem = {
-  product: Product;
-  quantity: number;
-};
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import { Product, CartItem, CartSummary } from '@/types';
+import { calculateCartSummary } from '@/utils';
 
 type CartContextType = {
   cart: CartItem[];
+  summary: CartSummary;
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -26,6 +17,9 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Calculate cart summary using utility function
+  const summary = useMemo(() => calculateCartSummary(cart), [cart]);
 
   const addToCart = useCallback((product: Product) => {
     setCart(prevCart => {
@@ -51,7 +45,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart(productId);
       return;
     }
-    
+
     setCart(prevCart =>
       prevCart.map(item =>
         item.product.id === productId
@@ -66,21 +60,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getCartTotal = useCallback(() => {
-    return cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
-  }, [cart]);
+    return summary.total;
+  }, [summary.total]);
 
   const getCartCount = useCallback(() => {
-    return cart.reduce((count, item) => count + item.quantity, 0);
-  }, [cart]);
+    return summary.itemCount;
+  }, [summary.itemCount]);
 
   const value = {
     cart,
+    summary,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
     getCartTotal,
-    getCartCount
+    getCartCount,
   };
 
   return (
