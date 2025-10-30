@@ -11,9 +11,11 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { supabase, UnitOfMeasure } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPrice } from '@/utils/currency';
+import { createDefaultUOMList } from '@/utils/uom';
+import UOMManager from '@/components/UOMManager';
 import { Plus, Edit2, Trash2 } from 'lucide-react-native';
 
 type Category = {
@@ -29,6 +31,8 @@ type Product = {
   category_id: string | null;
   stock: number;
   active: boolean;
+  base_uom: string;
+  uom_list: UnitOfMeasure[];
   categories?: Category | null;
 };
 
@@ -46,6 +50,8 @@ export default function ProductsScreen() {
     price: '',
     category_id: '',
     stock: '',
+    base_uom: 'piece',
+    uom_list: createDefaultUOMList('piece'),
   });
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
@@ -79,11 +85,14 @@ export default function ProductsScreen() {
 
   const openAddProductModal = () => {
     setEditingProduct(null);
+    const defaultUOM = 'piece';
     setFormData({
       name: '',
       price: '',
       category_id: categories[0]?.id || '',
       stock: '0',
+      base_uom: defaultUOM,
+      uom_list: createDefaultUOMList(defaultUOM),
     });
     setProductModalVisible(true);
   };
@@ -95,6 +104,8 @@ export default function ProductsScreen() {
       price: product.price.toString(),
       category_id: product.category_id || '',
       stock: product.stock.toString(),
+      base_uom: product.base_uom || 'piece',
+      uom_list: product.uom_list || createDefaultUOMList(product.base_uom || 'piece'),
     });
     setProductModalVisible(true);
   };
@@ -130,6 +141,8 @@ export default function ProductsScreen() {
         category_id: formData.category_id || null,
         stock: parseInt(formData.stock) || 0,
         active: true,
+        base_uom: formData.base_uom,
+        uom_list: formData.uom_list,
       };
 
       if (editingProduct) {
@@ -342,7 +355,14 @@ export default function ProductsScreen() {
                   </View>
                   <View style={styles.productDetails}>
                     <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
-                    <Text style={styles.productStock}>Stock: {product.stock}</Text>
+                    <Text style={styles.productStock}>
+                      Stock: {product.stock} {product.base_uom || 'pcs'}
+                    </Text>
+                    {product.uom_list && product.uom_list.length > 1 && (
+                      <Text style={styles.productUomBadge}>
+                        +{product.uom_list.length - 1} UOM
+                      </Text>
+                    )}
                   </View>
                 </View>
 
@@ -426,6 +446,14 @@ export default function ProductsScreen() {
                 onChangeText={(text) => setFormData({ ...formData, stock: text })}
                 placeholder="0"
                 keyboardType="number-pad"
+              />
+
+              <UOMManager
+                baseUom={formData.base_uom}
+                uomList={formData.uom_list}
+                onChange={(baseUom, uomList) =>
+                  setFormData({ ...formData, base_uom: baseUom, uom_list: uomList })
+                }
               />
 
               <View style={styles.modalActions}>
@@ -636,6 +664,11 @@ const styles = StyleSheet.create({
   productStock: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  productUomBadge: {
+    fontSize: 12,
+    color: '#8B5CF6',
+    fontWeight: '600',
   },
   productActions: {
     flexDirection: 'row',
