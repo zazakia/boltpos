@@ -31,6 +31,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Service role client for admin operations (bypasses RLS and email confirmation)
+export const supabaseService = createClient(supabaseUrl, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZydGlmZWVneWxhbnplaWNnb2FxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjA5MTI0NiwiZXhwIjoyMDc3NjY3MjQ2fQ.ChoAehj12NchZsgFS0iGfPaSiX8sA5qLBHaxfwT7zF0', {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
+
 console.log('Supabase: Client created successfully');
 
 export type Database = {

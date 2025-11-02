@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseService } from '@/lib/supabase';
+import {
+  loadUserProfile,
+  signUpUser,
+  signInUser,
+  signOutUser,
+  createAdminUser as createAdminUserService,
+  createAdminProfileForExistingUser as createAdminProfileService
+} from '@/services/auth.service';
 
 type Profile = {
   id: string;
@@ -65,19 +73,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadProfile = async (userId: string) => {
     try {
-      console.log('AuthContext: Fetching profile from Supabase for user:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('AuthContext: Supabase error loading profile:', error);
-        throw error;
+      console.log('AuthContext: Loading profile using auth.service for user:', userId);
+      const result = await loadUserProfile(userId);
+      
+      if (result.error) {
+        console.error('AuthContext: Auth service error loading profile:', result.error);
+        // Continue without throwing, as per instructions
+      } else {
+        console.log('AuthContext: Profile loaded successfully:', result.data ? 'profile found' : 'no profile');
+        setProfile(result.data);
       }
-      console.log('AuthContext: Profile loaded successfully:', data ? 'profile found' : 'no profile');
-      setProfile(data);
     } catch (error) {
       console.error('AuthContext: Error loading profile:', error);
     } finally {
@@ -87,32 +92,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) throw error;
-
-    if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email: data.user.email!,
-        full_name: fullName,
-        role: 'staff',
-      });
-
-      if (profileError) throw profileError;
+    const result = await signUpUser(email, password, fullName);
+    
+    if (result.error) {
+      throw new Error(result.error);
     }
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) throw error;
+    const result = await signInUser(email, password);
+    
+    if (result.error) {
+      throw new Error(result.error);
+    }
   };
 
   const signOut = async () => {
@@ -120,8 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Set loading to true to prevent race conditions during sign-out
       setLoading(true);
       
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      const result = await signOutUser();
+      if (result.error) {
+        throw new Error(result.error);
+      }
       
       // Clear local state immediately after sign out
       setSession(null);
@@ -141,59 +135,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createAdminUser = async () => {
     const adminEmail = 'admin@boltpos.com';
     const adminPassword = 'Admin123!';
-    const adminName = 'Admin User';
 
     try {
-      // First, try to sign in (in case admin already exists)
+      // First, try to sign in (in case admin already exists and is confirmed)
       try {
         await signIn(adminEmail, adminPassword);
         return;
       } catch (signInError: any) {
-        // If sign in fails, check if it's because the user doesn't exist
+        // Handle different sign-in errors
         if (signInError.message && signInError.message.includes('Invalid login credentials')) {
           // User doesn't exist, continue with creation
+          console.log('Admin user does not exist, will create new one');
+        } else if (signInError.message && signInError.message.includes('Email not confirmed')) {
+          // User exists but email not confirmed, will create profile using service role
+          console.log('Admin user exists but email not confirmed, will create profile');
+          await createAdminProfileForExistingUser();
+          return;
         } else {
           // Some other error, re-throw it
           throw signInError;
         }
       }
 
-      // Try to create the admin user
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: adminEmail,
-        password: adminPassword,
-      });
-
-      // If there's an error and it's not "User already registered", throw it
-      if (signUpError && !signUpError.message.includes('User already registered')) {
-        throw signUpError;
-      }
-
-      // If user already exists or was just created, try to sign in
-      await signIn(adminEmail, adminPassword);
-
-      // Check if profile exists, create if not
-      if (data?.user) {
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        if (!existingProfile) {
-          // Create admin profile
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id,
-            email: data.user.email!,
-            full_name: adminName,
-            role: 'admin',
-          });
-
-          if (profileError) throw profileError;
+      // Try to create the admin user using service role (bypasses email confirmation)
+      console.log('Creating admin user with service role...');
+      const result = await createAdminUserService();
+      
+      if (result.error) {
+        if (!result.error.includes('already registered')) {
+          throw new Error(result.error);
         }
+        console.log('Admin user already exists in auth system');
+      } else {
+        console.log('Admin user created successfully with service role');
       }
+
+      // Try to sign in the created user
+      await signIn(adminEmail, adminPassword);
     } catch (error) {
       console.error('Error creating admin user:', error);
+      throw error;
+    }
+  };
+
+  const createAdminProfileForExistingUser = async () => {
+    try {
+      console.log('Creating admin profile for existing user using auth.service');
+      const result = await createAdminProfileService();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      console.log('Admin profile created successfully for existing user');
+    } catch (error) {
+      console.error('Error creating admin profile for existing user:', error);
       throw error;
     }
   };

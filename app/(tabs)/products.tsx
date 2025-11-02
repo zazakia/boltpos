@@ -118,12 +118,16 @@ export default function ProductsScreen() {
 
       if (productsData.data) {
         // Transform the data to match our Product type
-        const transformedProducts: Product[] = productsData.data.map((item: ProductWithCategories) => ({
-          ...item,
-          categories: Array.isArray(item.categories) && item.categories.length > 0 
-            ? item.categories[0] 
-            : (item.categories && typeof item.categories === 'object' ? item.categories : null),
-        }));
+        const transformedProducts: Product[] = productsData.data.map((item: ProductWithCategories) => {
+          const categories = item.categories && typeof item.categories === 'object' && !Array.isArray(item.categories)
+            ? item.categories
+            : null;
+
+          return {
+            ...item,
+            categories,
+          };
+        });
         setProducts(transformedProducts);
       }
       if (categoriesData.data) setCategories(categoriesData.data);

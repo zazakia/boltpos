@@ -12,7 +12,15 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
-import { supabase } from '@/lib/supabase';
+import {
+  fetchProductsForCart,
+  validateCartStock,
+  checkProductStock
+} from '@/services/cart.service';
+import {
+  createOrderWithItems,
+  decrementProductStock
+} from '@/services/orders.service';
 import { formatPrice } from '@/utils/currency';
 import { ArrowLeft, CreditCard, Banknote, Smartphone, Plus, Minus, Trash2, AlertTriangle } from 'lucide-react-native';
 
@@ -46,13 +54,15 @@ export default function CartScreen() {
     setLoadingProducts(true);
     try {
       const productIds = cart.map(item => item.product.id);
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, price, stock')
-        .in('id', productIds);
+      const result = await fetchProductsForCart(productIds);
       
-      if (error) throw error;
-      setProducts(data || []);
+      if (result.data) {
+        setProducts(result.data);
+      }
+      
+      if (result.error) {
+        console.error('Error loading products:', result.error);
+      }
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
@@ -72,35 +82,18 @@ export default function CartScreen() {
     return getSubtotal() + getTax();
   };
 
-  const validateCartStock = async () => {
+  const validateCartStock = async (): Promise<{ isValid: boolean; errors: any[] }> => {
     if (cart.length === 0) return { isValid: true, errors: [] };
     
     try {
-      const productIds = cart.map(item => item.product.id);
-      const { data: currentProducts, error } = await supabase
-        .from('products')
-        .select('id, name, stock')
-        .in('id', productIds);
+      const validationResult = await validateCartStock(cart);
       
-      if (error) throw error;
+      if (validationResult.error) {
+        console.error('Error validating stock:', validationResult.error);
+        return { isValid: false, errors: [] };
+      }
       
-      const errors: Array<{productName: string; requestedQty: number; availableStock: number}> = [];
-      
-      cart.forEach(cartItem => {
-        const product = currentProducts?.find(p => p.id === cartItem.product.id);
-        if (product && cartItem.quantity > product.stock) {
-          errors.push({
-            productName: product.name,
-            requestedQty: cartItem.quantity,
-            availableStock: product.stock
-          });
-        }
-      });
-      
-      return {
-        isValid: errors.length === 0,
-        errors
-      };
+      return validationResult.data || { isValid: false, errors: [] };
     } catch (error) {
       console.error('Error validating stock:', error);
       return { isValid: false, errors: [] };
@@ -109,14 +102,11 @@ export default function CartScreen() {
 
   const updateProductStock = async (orderItems: any[]) => {
     try {
-      // Update stock for all products in a single transaction
-      const { error } = await supabase.rpc('decrement_multiple_product_stock', {
-        order_items: JSON.stringify(orderItems)
-      });
+      const result = await decrementProductStock(orderItems);
       
-      if (error) {
-        console.error('Error updating stock for multiple products', error);
-        throw error;
+      if (result.error) {
+        console.error('Error updating stock for multiple products', result.error);
+        throw new Error(result.error);
       }
     } catch (error) {
       console.error('Error updating product stock:', error);
@@ -149,38 +139,30 @@ export default function CartScreen() {
         return;
       }
 
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          total: getTotal(),
-          tax: getTax(),
-          status: 'completed',
-          payment_method: paymentMethod,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
+      const orderData = {
+        user_id: user.id,
+        total: getTotal(),
+        tax: getTax(),
+        status: 'completed',
+        payment_method: paymentMethod,
+      };
 
       const orderItems = cart.map((item) => ({
-        order_id: order.id,
         product_id: item.product.id,
         quantity: item.quantity,
         price: item.product.price,
-        subtotal: item.product.price * item.quantity,
       }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+      const result = await createOrderWithItems(orderData, orderItems);
+      
+      if (result.error) {
+        console.error('Error processing order:', result.error);
+        Alert.alert('Error', result.error);
+        setProcessingPayment(false);
+        return;
+      }
 
-      if (itemsError) throw itemsError;
-
-      // Update product stock after successful order
-      await updateProductStock(orderItems);
-
-      // Clear cart
+      // Clear cart only on successful result
       clearCart();
       
       Alert.alert('Success', 'Order placed successfully!', [
@@ -198,22 +180,18 @@ export default function CartScreen() {
     // For increments, fetch the latest stock to ensure accuracy
     if (newQuantity > 0) {
       try {
-        const { data: currentProduct, error } = await supabase
-          .from('products')
-          .select('id, stock')
-          .eq('id', productId)
-          .single();
+        const result = await checkProductStock(productId);
         
-        if (error) {
-          console.error('Error fetching latest stock:', error);
+        if (result.error) {
+          console.error('Error fetching latest stock:', result.error);
           Alert.alert('Error', 'Failed to check stock availability. Please try again.');
           return;
         }
         
-        if (newQuantity > currentProduct.stock) {
+        if (result.data && newQuantity > result.data.stock) {
           Alert.alert(
             'Insufficient Stock',
-            `Only ${currentProduct.stock} items available.`
+            `Only ${result.data.stock} items available.`
           );
           return;
         }

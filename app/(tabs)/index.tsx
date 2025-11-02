@@ -12,9 +12,9 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import { fetchCategories, fetchActiveProducts } from '@/services/products.service';
 import { formatPrice } from '@/utils/currency';
 import { Plus, Minus, ShoppingCart, CreditCard, Banknote, Smartphone } from 'lucide-react-native';
 
@@ -49,13 +49,20 @@ export default function POSScreen() {
 
   const loadData = async () => {
     try {
-      const [categoriesData, productsData] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('products').select('*').eq('active', true).order('name'),
+      const [categoriesResult, productsResult] = await Promise.all([
+        fetchCategories(),
+        fetchActiveProducts(),
       ]);
 
-      if (categoriesData.data) setCategories(categoriesData.data);
-      if (productsData.data) setProducts(productsData.data);
+      if (categoriesResult.data) setCategories(categoriesResult.data);
+      if (productsResult.data) setProducts(productsResult.data);
+      
+      if (categoriesResult.error) {
+        console.error('Error loading categories:', categoriesResult.error);
+      }
+      if (productsResult.error) {
+        console.error('Error loading products:', productsResult.error);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {

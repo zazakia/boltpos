@@ -3,7 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { ShoppingCart, Package, Receipt, User, Users } from 'lucide-react-native';
+import { ShoppingCart, Package, Receipt, User, Users, Database } from 'lucide-react-native';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
@@ -95,6 +95,15 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ size, color }) => (
             <User size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="migration"
+        options={{
+          title: 'Migration',
+          tabBarIcon: ({ size, color }) => (
+            <Database size={size} color={color} />
           ),
         }}
       />
