@@ -186,6 +186,147 @@ export type Database = {
           created_at?: string;
         };
       };
+      suppliers: {
+        Row: {
+          id: string;
+          name: string;
+          contact_person: string | null;
+          email: string | null;
+          phone: string | null;
+          address: string | null;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          contact_person?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          address?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          contact_person?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          address?: string | null;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      vouchers: {
+        Row: {
+          id: string;
+          voucher_number: string;
+          supplier_id: string;
+          user_id: string;
+          total_amount: number;
+          status: 'pending' | 'received' | 'cancelled';
+          received_date: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          voucher_number: string;
+          supplier_id: string;
+          user_id: string;
+          total_amount?: number;
+          status?: 'pending' | 'received' | 'cancelled';
+          received_date?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          voucher_number?: string;
+          supplier_id?: string;
+          user_id?: string;
+          total_amount?: number;
+          status?: 'pending' | 'received' | 'cancelled';
+          received_date?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      voucher_items: {
+        Row: {
+          id: string;
+          voucher_id: string;
+          product_id: string;
+          quantity: number;
+          unit_cost: number;
+          subtotal: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          voucher_id: string;
+          product_id: string;
+          quantity: number;
+          unit_cost: number;
+          subtotal: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          voucher_id?: string;
+          product_id?: string;
+          quantity?: number;
+          unit_cost?: number;
+          subtotal?: number;
+          created_at?: string;
+        };
+      };
+      accounts_payable: {
+        Row: {
+          id: string;
+          supplier_id: string;
+          voucher_id: string | null;
+          amount_due: number;
+          amount_paid: number;
+          balance: number;
+          payment_date: string | null;
+          status: 'unpaid' | 'partially_paid' | 'paid';
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          supplier_id: string;
+          voucher_id?: string | null;
+          amount_due: number;
+          amount_paid?: number;
+          payment_date?: string | null;
+          status?: 'unpaid' | 'partially_paid' | 'paid';
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          supplier_id?: string;
+          voucher_id?: string | null;
+          amount_due?: number;
+          amount_paid?: number;
+          payment_date?: string | null;
+          status?: 'unpaid' | 'partially_paid' | 'paid';
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 };

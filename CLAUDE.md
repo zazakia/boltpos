@@ -72,12 +72,38 @@ Bolt POS is a React Native mobile application built with Expo that serves as a p
 - Audit trail for stock changes
 - Fields: id, product_id, quantity_change, remaining_stock, created_at
 
+#### suppliers
+- Supplier/vendor information management
+- Fields: id, name, contact_person, email, phone, address, active, created_at, updated_at
+- Soft deletion with active field
+
+#### vouchers
+- Purchase orders and receiving vouchers from suppliers
+- Fields: id, voucher_number, supplier_id, user_id, total_amount, status, received_date, notes, created_at, updated_at
+- Status: pending | received | cancelled
+- Links to suppliers and users (who created/received)
+
+#### voucher_items
+- Line items for each voucher
+- Fields: id, voucher_id, product_id, quantity, unit_cost, subtotal, created_at
+- Links to vouchers and products
+
+#### accounts_payable
+- Tracks outstanding payments owed to suppliers
+- Fields: id, supplier_id, voucher_id, amount_due, amount_paid, balance (computed), payment_date, status, notes, created_at, updated_at
+- Status: unpaid | partially_paid | paid
+- Balance is automatically calculated as (amount_due - amount_paid)
+
 ### Database Functions
 
 #### Stock Management
 - decrement_product_stock() - Single product stock decrement
 - increment_product_stock() - Single product stock increment
 - decrement_multiple_product_stock() - Batch stock decrement (atomic)
+
+#### Voucher Management
+- receive_voucher_items() - Processes voucher receipt, updates product stock atomically, creates accounts payable entry
+- update_payable_payment() - Records payment against accounts payable and updates status automatically
 
 #### Security
 - is_admin() - Admin role checking function
@@ -143,6 +169,29 @@ Bolt POS is a React Native mobile application built with Expo that serves as a p
 - User order filtering
 - Payment method display
 
+### 7. Vouchers Screen (app/(tabs)/vouchers.tsx)
+- Voucher/purchase order management
+- Create vouchers with multiple line items
+- Receive vouchers to update stock
+- Auto-generate voucher numbers
+- Status tracking (pending, received, cancelled)
+- Admin-only voucher creation and receiving
+
+### 8. Suppliers Screen (app/(tabs)/suppliers.tsx)
+- Supplier/vendor management
+- CRUD operations for suppliers
+- Contact information tracking
+- Active/inactive supplier status
+- Admin-only supplier management
+
+### 9. Accounts Payable Screen (app/(tabs)/payables.tsx)
+- Track outstanding payments to suppliers
+- Record payments against payables
+- Filter by payment status
+- View payment history
+- Summary of total outstanding balance
+- Admin-only payment recording
+
 ## Development Workflow
 
 ### Setup & Configuration
@@ -195,6 +244,18 @@ npm run typecheck    # Run TypeScript checks
 - Prevents overselling with real-time validation
 - Batch operations for order processing
 - Stock logs for audit purposes
+
+### Voucher Receiving Workflow
+- Create voucher with supplier and line items
+- System generates unique voucher number
+- Voucher starts in "pending" status
+- Admin receives voucher (atomic operation):
+  * Updates product stock quantities
+  * Logs stock changes in stock_logs
+  * Creates accounts payable entry
+  * Updates voucher status to "received"
+- Accounts payable tracks payment status
+- Partial and full payments supported
 
 ### Payment Processing
 - Multiple payment methods supported
