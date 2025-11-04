@@ -1,10 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { getErrorMessage } from '@/utils/errorHandler';
-
-export type ServiceResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import { ServiceResult } from './types';
+import * as FileSystem from 'expo-file-system';
 
 export const fetchCategories = async (): Promise<ServiceResult<any[]>> => {
   try {
@@ -37,8 +34,16 @@ export const fetchProducts = async (): Promise<ServiceResult<any[]>> => {
       return { data: null, error: getErrorMessage(error) };
     }
 
+    // Normalize categories to be a single object or null consistently
+    const normalizedData = data?.map(product => ({
+      ...product,
+      categories: product.categories && Array.isArray(product.categories)
+        ? product.categories[0]
+        : product.categories
+    })) || [];
+
     console.log('products.service: Products fetched successfully');
-    return { data, error: null };
+    return { data: normalizedData, error: null };
   } catch (error) {
     console.error('products.service: Error fetching products:', error);
     return { data: null, error: getErrorMessage(error) };
@@ -202,18 +207,23 @@ export const uploadProductImage = async (imageUri: string, productId: string): P
     const fileExt = imageUri.split('.').pop() || 'jpg';
     const fileName = `${productId}-${Date.now()}.${fileExt}`;
     
-    // Convert URI to blob
+    // Convert URI to blob using fetch (more compatible across platforms)
     const response = await fetch(imageUri);
     if (!response.ok) {
       throw new Error('Failed to fetch image');
     }
     const blob = await response.blob();
     
+    // Determine MIME type from file extension
+    const mimeType = fileExt === 'png' ? 'image/png' :
+                   fileExt === 'jpg' || fileExt === 'jpeg' ? 'image/jpeg' :
+                   'image/webp';
+    
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from('product-images')
       .upload(fileName, blob, {
-        contentType: `image/${fileExt}`,
+        contentType: mimeType,
         upsert: true,
       });
     

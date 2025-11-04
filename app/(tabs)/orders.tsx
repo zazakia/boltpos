@@ -10,9 +10,13 @@ import {
   Modal,
   Alert,
 } from 'react-native';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPrice } from '@/utils/currency';
+import {
+  fetchAllOrders,
+  fetchUserOrders,
+  updateOrderStatus as updateOrderStatusService
+} from '@/services/orders.service';
 
 type Order = {
   id: string;
@@ -65,35 +69,17 @@ export default function OrdersScreen() {
     }
     
     try {
-      let query = supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            id,
-            quantity,
-            price,
-            subtotal,
-            products (
-              name
-            )
-          ),
-          profiles (
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false });
-
+      let result;
+      
       // For non-admin users, only show their own orders
       if (!isAdmin) {
-        query = query.eq('user_id', user!.id); // We know user exists because of the guard above
+        result = await fetchUserOrders(user!.id); // We know user exists because of the guard above
+      } else {
+        result = await fetchAllOrders();
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setOrders(data || []);
+      if (result.error) throw new Error(result.error);
+      setOrders(result.data || []);
     } catch (error) {
       console.error('Error loading orders:', error);
       Alert.alert(
@@ -156,12 +142,9 @@ export default function OrdersScreen() {
   const performStatusUpdate = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
     setUpdatingTarget(newStatus);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+      const result = await updateOrderStatusService(orderId, newStatus);
 
-      if (error) throw error;
+      if (result.error) throw new Error(result.error);
       
       // Refresh orders and close modal immediately
       await loadOrders();
@@ -190,7 +173,7 @@ export default function OrdersScreen() {
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
     // Get current order to display in confirmation
     const currentOrder = orders.find(order => order.id === orderId);
     const currentStatus = currentOrder?.status || 'unknown';
@@ -379,7 +362,7 @@ export default function OrdersScreen() {
                             selectedOrder.status === 'completed' && styles.actionButtonDisabled,
                             updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'completed')}
+                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}
                           disabled={selectedOrder.status === 'completed' || updatingTarget !== null}>
                           <Text
                             style={[
@@ -398,7 +381,7 @@ export default function OrdersScreen() {
                             selectedOrder.status === 'refunded' && styles.actionButtonDisabled,
                             updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'refunded')}
+                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'refunded')}
                           disabled={selectedOrder.status === 'refunded' || updatingTarget !== null}>
                           <Text
                             style={[
@@ -417,7 +400,7 @@ export default function OrdersScreen() {
                             selectedOrder.status === 'cancelled' && styles.actionButtonDisabled,
                             updatingTarget && styles.actionButtonDisabled,
                           ]}
-                          onPress={() => updateOrderStatus(selectedOrder.id, 'cancelled')}
+                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'cancelled')}
                           disabled={selectedOrder.status === 'cancelled' || updatingTarget !== null}>
                           <Text
                             style={[

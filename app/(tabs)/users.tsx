@@ -11,8 +11,13 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  fetchAllUsers,
+  updateUserProfile,
+  toggleUserActiveStatus
+} from '@/services/users.service';
+import { resetUserPassword } from '@/services/auth.service';
 import { User, Shield, Edit2, Key, Power } from 'lucide-react-native';
 
 type UserProfile = {
@@ -55,16 +60,13 @@ export default function UsersScreen() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const result = await fetchAllUsers();
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (result.error) throw new Error(result.error);
+      setUsers(result.data || []);
       
       // Count active admins for validation
-      const activeAdmins = (data || []).filter(u => u.role === 'admin' && u.active).length;
+      const activeAdmins = (result.data || []).filter(u => u.role === 'admin' && u.active).length;
       setAdminCount(activeAdmins);
     } catch (error) {
       console.error('Error loading users:', error);
@@ -103,16 +105,12 @@ export default function UsersScreen() {
     }
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formData.full_name,
-          role: formData.role,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingUser.id);
+      const result = await updateUserProfile(editingUser.id, {
+        full_name: formData.full_name,
+        role: formData.role,
+      });
 
-      if (error) throw error;
+      if (result.error) throw new Error(result.error);
       setModalVisible(false);
       loadUsers();
     } catch (error: any) {
@@ -139,15 +137,9 @@ export default function UsersScreen() {
           text: 'Confirm',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('profiles')
-                .update({
-                  active: !currentActive,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', userId);
+              const result = await toggleUserActiveStatus(userId, !currentActive);
 
-              if (error) throw error;
+              if (result.error) throw new Error(result.error);
               
               Alert.alert(
                 'Success',
@@ -166,11 +158,9 @@ export default function UsersScreen() {
 
   const handleResetPassword = async () => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(passwordData.email, {
-        redirectTo: 'bolt-expo-nativewind://reset-password'
-      });
+      const result = await resetUserPassword(passwordData.email, '/(auth)/login');
 
-      if (error) throw error;
+      if (result.error) throw new Error(result.error);
 
       Alert.alert('Success', 'Password reset email sent. The user will receive an email with instructions.');
       setShowPasswordModal(false);

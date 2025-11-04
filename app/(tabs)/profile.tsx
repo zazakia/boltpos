@@ -2,9 +2,9 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Aler
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import { updateOwnProfile } from '@/services/users.service';
 import { User, Mail, Shield, LogOut, Users } from 'lucide-react-native';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 
 export default function ProfileScreen() {
   const { user, profile, signOut } = useAuth();
@@ -52,12 +52,9 @@ export default function ProfileScreen() {
 
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName, updated_at: new Date().toISOString() })
-        .eq('id', user.id);
+      const result = await updateOwnProfile(user.id, fullName);
 
-      if (error) throw error;
+      if (result.error) throw new Error(result.error);
       setEditing(false);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error: any) {

@@ -82,11 +82,17 @@ export default function CartScreen() {
     return getSubtotal() + getTax();
   };
 
-  const validateCartStock = async (): Promise<{ isValid: boolean; errors: any[] }> => {
+  const validateCartStockLocal = async (): Promise<{ isValid: boolean; errors: any[] }> => {
     if (cart.length === 0) return { isValid: true, errors: [] };
     
     try {
-      const validationResult = await validateCartStock(cart);
+      // Map cart to normalized shape for the service
+      const normalizedCartItems = cart.map(item => ({
+        product_id: item.product.id,
+        quantity: item.quantity
+      }));
+      
+      const validationResult = await validateCartStock(normalizedCartItems);
       
       if (validationResult.error) {
         console.error('Error validating stock:', validationResult.error);
@@ -121,7 +127,7 @@ export default function CartScreen() {
 
     try {
       // Validate stock availability before checkout
-      const stockValidation = await validateCartStock();
+      const stockValidation = await validateCartStockLocal();
       
       if (!stockValidation.isValid) {
         const errorMessage = stockValidation.errors

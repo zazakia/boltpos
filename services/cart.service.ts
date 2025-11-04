@@ -1,10 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getErrorMessage } from '@/utils/errorHandler';
-
-export type ServiceResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import { ServiceResult } from './types';
 
 export const fetchProductsForCart = async (productIds: string[]): Promise<ServiceResult<any[]>> => {
   try {
@@ -27,7 +23,7 @@ export const fetchProductsForCart = async (productIds: string[]): Promise<Servic
   }
 };
 
-export const validateCartStock = async (cartItems: any[]): Promise<ServiceResult<{ isValid: boolean; errors: any[] }>> => {
+export const validateCartStock = async (cartItems: { product_id: string; quantity: number }[]): Promise<ServiceResult<{ isValid: boolean; errors: any[] }>> => {
   try {
     console.log('cart.service: Validating cart stock');
     
@@ -35,7 +31,7 @@ export const validateCartStock = async (cartItems: any[]): Promise<ServiceResult
       return { data: { isValid: true, errors: [] }, error: null };
     }
     
-    const productIds = cartItems.map(item => item.product.id);
+    const productIds = cartItems.map(item => item.product_id);
     const { data: currentProducts, error } = await supabase
       .from('products')
       .select('id, name, stock')
@@ -49,7 +45,7 @@ export const validateCartStock = async (cartItems: any[]): Promise<ServiceResult
     const errors: Array<{productName: string; requestedQty: number; availableStock: number}> = [];
     
     cartItems.forEach(cartItem => {
-      const product = currentProducts?.find(p => p.id === cartItem.product.id);
+      const product = currentProducts?.find(p => p.id === cartItem.product_id);
       if (product && cartItem.quantity > product.stock) {
         errors.push({
           productName: product.name,

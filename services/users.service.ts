@@ -1,10 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getErrorMessage } from '@/utils/errorHandler';
-
-export type ServiceResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import { ServiceResult } from './types';
 
 export const fetchAllUsers = async (): Promise<ServiceResult<any[]>> => {
   try {
@@ -77,7 +73,10 @@ export const updateOwnProfile = async (userId: string, fullName: string): Promis
     console.log('users.service: Updating own profile:', userId);
     const { data, error } = await supabase
       .from('profiles')
-      .update({ full_name: fullName })
+      .update({
+        full_name: fullName,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
       .select()
       .single();
@@ -95,7 +94,7 @@ export const updateOwnProfile = async (userId: string, fullName: string): Promis
   }
 };
 
-export const toggleUserActiveStatus = async (userId: string): Promise<ServiceResult<any>> => {
+export const toggleUserActiveStatus = async (userId: string, active: boolean): Promise<ServiceResult<any>> => {
   try {
     console.log('users.service: Toggling user active status:', userId);
     

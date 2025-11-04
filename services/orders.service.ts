@@ -1,10 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { getErrorMessage } from '@/utils/errorHandler';
-
-export type ServiceResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import { ServiceResult } from './types';
 
 export const fetchAllOrders = async (): Promise<ServiceResult<any[]>> => {
   try {
@@ -177,7 +173,7 @@ export const decrementProductStock = async (orderItems: any[]): Promise<ServiceR
     
     // Update stock for all products in a single transaction
     const { data, error } = await supabase.rpc('decrement_multiple_product_stock', {
-      order_items: JSON.stringify(orderItems)
+      order_items: orderItems
     });
     
     if (error) {

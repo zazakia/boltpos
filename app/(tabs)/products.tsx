@@ -14,9 +14,23 @@ import {
   Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPrice } from '@/utils/currency';
+import {
+  fetchProducts,
+  fetchActiveProducts,
+  fetchProductsByIds,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  bulkActivateProducts,
+  bulkDeactivateProducts,
+  uploadProductImage,
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory
+} from '@/services/products.service';
 import { Plus, Edit2, Trash2, Search, Check, X, Upload } from 'lucide-react-native';
 
 type Category = {
@@ -96,41 +110,29 @@ export default function ProductsScreen() {
 
   const loadData = async () => {
     try {
-      const [productsData, categoriesData] = await Promise.all([
-        supabase
-          .from('products')
-          .select('id,name,price,stock,active,category_id,image_url,categories!category_id(*)')
-          .order('name'),
-        supabase.from('categories').select('*').order('name'),
-      ]);
-
-      if (productsData.error) {
-        console.error('Products error:', productsData.error);
+      const productsResult = await fetchProducts();
+      
+      if (productsResult.error) {
+        console.error('Products error:', productsResult.error);
         Alert.alert('Error', 'Failed to load products. Please try again.');
         return;
       }
 
-      if (categoriesData.error) {
-        console.error('Categories error:', categoriesData.error);
+      if (productsResult.data) {
+        // Use the normalized response directly since the service now handles the transformation
+        setProducts(productsResult.data);
+      }
+      
+      // Use the service to fetch categories
+      const categoriesResult = await fetchCategories();
+        
+      if (categoriesResult.error) {
+        console.error('Categories error:', categoriesResult.error);
         Alert.alert('Error', 'Failed to load categories. Please try again.');
         return;
       }
-
-      if (productsData.data) {
-        // Transform the data to match our Product type
-        const transformedProducts: Product[] = productsData.data.map((item: ProductWithCategories) => {
-          const categories = item.categories && typeof item.categories === 'object' && !Array.isArray(item.categories)
-            ? item.categories
-            : null;
-
-          return {
-            ...item,
-            categories,
-          };
-        });
-        setProducts(transformedProducts);
-      }
-      if (categoriesData.data) setCategories(categoriesData.data);
+      
+      if (categoriesResult.data) setCategories(categoriesResult.data);
     } catch (error) {
       console.error('Error loading data:', error);
       Alert.alert('Error', 'An unexpected error occurred while loading data.');
@@ -228,41 +230,20 @@ export default function ProductsScreen() {
     }
   };
 
-  const uploadProductImage = async (imageUri: string, productId: string): Promise<string | null> => {
+  const uploadProductImageLocal = async (imageUri: string, productId: string): Promise<string | null> => {
     try {
       setUploadingImage(true);
       
-      // Create a unique file name
-      const fileExt = imageUri.split('.').pop() || 'jpg';
-      const fileName = `${productId}-${Date.now()}.${fileExt}`;
+      // Use the service function to upload the image
+      const result = await uploadProductImage(imageUri, productId);
       
-      // Convert URI to blob
-      const response = await fetch(imageUri);
-      if (!response.ok) {
-        throw new Error('Failed to fetch image');
-      }
-      const blob = await response.blob();
-      
-      // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, blob, {
-          contentType: `image/${fileExt}`,
-          upsert: true,
-        });
-      
-      if (error) {
-        console.error('Supabase storage error:', error);
+      if (result.error) {
+        console.error('Image upload error:', result.error);
         Alert.alert('Upload Error', 'Failed to upload image. Please try again.');
         return null;
       }
       
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-      
-      return publicUrl;
+      return result.data || null;
     } catch (error) {
       console.error('Error uploading image:', error);
       Alert.alert('Error', 'Failed to upload image. Please check your connection.');
@@ -284,14 +265,14 @@ export default function ProductsScreen() {
       // For new products, upload image if selected
       if (!editingProduct && selectedImageUri && !selectedImageUri.startsWith('https://')) {
         const tempId = `temp-${Date.now()}`;
-        imageUrl = await uploadProductImage(selectedImageUri, tempId);
+        imageUrl = await uploadProductImageLocal(selectedImageUri, tempId);
       }
       
       // For existing products, upload new image if changed
       if (editingProduct && selectedImageUri &&
           selectedImageUri !== editingProduct.image_url &&
           !selectedImageUri.startsWith('https://')) {
-        imageUrl = await uploadProductImage(selectedImageUri, editingProduct.id);
+        imageUrl = await uploadProductImageLocal(selectedImageUri, editingProduct.id);
       }
 
       const productData: any = {
@@ -312,16 +293,13 @@ export default function ProductsScreen() {
       }
 
       if (editingProduct) {
-        const { error } = await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', editingProduct.id);
+        const result = await updateProduct(editingProduct.id, productData);
 
-        if (error) throw error;
+        if (result.error) throw new Error(result.error);
       } else {
-        const { error } = await supabase.from('products').insert(productData);
+        const result = await createProduct(productData);
 
-        if (error) throw error;
+        if (result.error) throw new Error(result.error);
       }
 
       setProductModalVisible(false);
@@ -346,16 +324,13 @@ export default function ProductsScreen() {
       };
 
       if (editingCategory) {
-        const { error } = await supabase
-          .from('categories')
-          .update(categoryData)
-          .eq('id', editingCategory.id);
+        const result = await updateCategory(editingCategory.id, categoryData);
 
-        if (error) throw error;
+        if (result.error) throw new Error(result.error);
       } else {
-        const { error } = await supabase.from('categories').insert(categoryData);
+        const result = await createCategory(categoryData);
 
-        if (error) throw error;
+        if (result.error) throw new Error(result.error);
       }
 
       setCategoryModalVisible(false);
@@ -377,12 +352,9 @@ export default function ProductsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('products')
-                .update({ active: false })
-                .eq('id', productId);
+              const result = await deleteProduct(productId);
 
-              if (error) throw error;
+              if (result.error) throw new Error(result.error);
               loadData();
             } catch (error: any) {
               console.error('Error deleting product:', error);
@@ -405,12 +377,9 @@ export default function ProductsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('categories')
-                .delete()
-                .eq('id', categoryId);
+              const result = await deleteCategory(categoryId);
 
-              if (error) throw error;
+              if (result.error) throw new Error(result.error);
               loadData();
             } catch (error: any) {
               console.error('Error deleting category:', error);
@@ -453,12 +422,9 @@ export default function ProductsScreen() {
           text: 'Activate',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('products')
-                .update({ active: true })
-                .in('id', Array.from(selectedProducts));
+              const result = await bulkActivateProducts(Array.from(selectedProducts));
 
-              if (error) throw error;
+              if (result.error) throw new Error(result.error);
               setSelectedProducts(new Set());
               setSelectionMode(false);
               loadData();
@@ -485,12 +451,9 @@ export default function ProductsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
-                .from('products')
-                .update({ active: false })
-                .in('id', Array.from(selectedProducts));
+              const result = await bulkDeactivateProducts(Array.from(selectedProducts));
 
-              if (error) throw error;
+              if (result.error) throw new Error(result.error);
               setSelectedProducts(new Set());
               setSelectionMode(false);
               loadData();

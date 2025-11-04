@@ -1,10 +1,6 @@
 import { supabase, supabaseService } from '@/lib/supabase';
 import { getErrorMessage } from '@/utils/errorHandler';
-
-export type ServiceResult<T> = {
-  data: T | null;
-  error: string | null;
-};
+import { ServiceResult } from './types';
 
 export const loadUserProfile = async (userId: string): Promise<ServiceResult<any>> => {
   try {
@@ -185,10 +181,12 @@ export const createAdminProfileForExistingUser = async (): Promise<ServiceResult
   }
 };
 
-export const resetUserPassword = async (email: string): Promise<ServiceResult<boolean>> => {
+export const resetUserPassword = async (email: string, redirectUrl?: string): Promise<ServiceResult<boolean>> => {
   try {
     console.log('auth.service: Resetting password for user:', email);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
 
     if (error) {
       console.error('auth.service: Supabase error resetting password:', error);
