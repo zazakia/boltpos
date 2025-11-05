@@ -1,1 +1,1 @@
-reactnativesupabasePOSapp
+reactnativesupabaseZapPOSapp

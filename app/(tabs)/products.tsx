@@ -67,10 +67,7 @@ export default function ProductsScreen() {
   const loadData = async () => {
     try {
       const [productsData, categoriesData] = await Promise.all([
-        supabase
-          .from('products')
-          .select('*, categories(*)')
-          .order('name'),
+        supabase.from('products').select('*, categories(*)').order('name'),
         supabase.from('categories').select('*').order('name'),
       ]);
 
@@ -105,7 +102,8 @@ export default function ProductsScreen() {
       category_id: product.category_id || '',
       stock: product.stock.toString(),
       base_uom: product.base_uom || 'piece',
-      uom_list: product.uom_list || createDefaultUOMList(product.base_uom || 'piece'),
+      uom_list:
+        product.uom_list || createDefaultUOMList(product.base_uom || 'piece'),
     });
     setProductModalVisible(true);
   };
@@ -186,7 +184,9 @@ export default function ProductsScreen() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('categories').insert(categoryData);
+        const { error } = await supabase
+          .from('categories')
+          .insert(categoryData);
 
         if (error) throw error;
       }
@@ -223,7 +223,7 @@ export default function ProductsScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -247,11 +247,14 @@ export default function ProductsScreen() {
               loadData();
             } catch (error: any) {
               console.error('Error deleting category:', error);
-              Alert.alert('Error', error.message || 'Failed to delete category');
+              Alert.alert(
+                'Error',
+                error.message || 'Failed to delete category',
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -269,11 +272,17 @@ export default function ProductsScreen() {
         <Text style={styles.headerTitle}>Products</Text>
         {isAdmin && (
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.addButton} onPress={openAddCategoryModal}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={openAddCategoryModal}
+            >
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Category</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={openAddProductModal}
+            >
               <Plus size={20} color="#FFFFFF" />
               <Text style={styles.addButtonText}>Add Product</Text>
             </TouchableOpacity>
@@ -301,12 +310,14 @@ export default function ProductsScreen() {
                   <View style={styles.categoryActions}>
                     <TouchableOpacity
                       style={styles.editButton}
-                      onPress={() => openEditCategoryModal(category)}>
+                      onPress={() => openEditCategoryModal(category)}
+                    >
                       <Edit2 size={18} color="#3B82F6" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.deleteButton}
-                      onPress={() => handleDeleteCategory(category.id)}>
+                      onPress={() => handleDeleteCategory(category.id)}
+                    >
                       <Trash2 size={18} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -325,7 +336,10 @@ export default function ProductsScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No products yet</Text>
               {isAdmin && (
-                <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={openAddProductModal}
+                >
                   <Plus size={20} color="#FFFFFF" />
                   <Text style={styles.addButtonText}>Add Product</Text>
                 </TouchableOpacity>
@@ -342,19 +356,23 @@ export default function ProductsScreen() {
                         style={[
                           styles.categoryBadge,
                           { backgroundColor: product.categories.color + '20' },
-                        ]}>
+                        ]}
+                      >
                         <Text
                           style={[
                             styles.categoryText,
                             { color: product.categories.color },
-                          ]}>
+                          ]}
+                        >
                           {product.categories.name}
                         </Text>
                       </View>
                     )}
                   </View>
                   <View style={styles.productDetails}>
-                    <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
+                    <Text style={styles.productPrice}>
+                      {formatPrice(product.price)}
+                    </Text>
                     <Text style={styles.productStock}>
                       Stock: {product.stock} {product.base_uom || 'pcs'}
                     </Text>
@@ -370,12 +388,14 @@ export default function ProductsScreen() {
                   <View style={styles.productActions}>
                     <TouchableOpacity
                       style={styles.editButton}
-                      onPress={() => openEditProductModal(product)}>
+                      onPress={() => openEditProductModal(product)}
+                    >
                       <Edit2 size={18} color="#3B82F6" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.deleteButton}
-                      onPress={() => handleDeleteProduct(product.id)}>
+                      onPress={() => handleDeleteProduct(product.id)}
+                    >
                       <Trash2 size={18} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -391,82 +411,107 @@ export default function ProductsScreen() {
         visible={productModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setProductModalVisible(false)}>
+        onRequestClose={() => setProductModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {editingProduct ? 'Edit Product' : 'Add Product'}
             </Text>
 
-            <View style={styles.form}>
-              <Text style={styles.label}>Product Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.name}
-                onChangeText={(text) => setFormData({ ...formData, name: text })}
-                placeholder="Enter product name"
-              />
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.form}>
+                <Text style={styles.label}>Product Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.name}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, name: text })
+                  }
+                  placeholder="Enter product name"
+                />
 
-              <Text style={styles.label}>Price *</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.price}
-                onChangeText={(text) => setFormData({ ...formData, price: text })}
-                placeholder="0.00"
-                keyboardType="decimal-pad"
-              />
+                <Text style={styles.label}>Price *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.price}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, price: text })
+                  }
+                  placeholder="0.00"
+                  keyboardType="decimal-pad"
+                />
 
-              <Text style={styles.label}>Category</Text>
-              <View style={styles.categoryPicker}>
-                {categories.map((category) => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.categoryOption,
-                      formData.category_id === category.id && styles.categoryOptionSelected,
-                      { borderColor: category.color },
-                    ]}
-                    onPress={() => setFormData({ ...formData, category_id: category.id })}>
-                    <Text
+                <Text style={styles.label}>Category</Text>
+                <View style={styles.categoryPicker}>
+                  {categories.map((category) => (
+                    <TouchableOpacity
+                      key={category.id}
                       style={[
-                        styles.categoryOptionText,
+                        styles.categoryOption,
                         formData.category_id === category.id &&
-                          styles.categoryOptionTextSelected,
-                      ]}>
-                      {category.name}
-                    </Text>
+                          styles.categoryOptionSelected,
+                        { borderColor: category.color },
+                      ]}
+                      onPress={() =>
+                        setFormData({ ...formData, category_id: category.id })
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.categoryOptionText,
+                          formData.category_id === category.id &&
+                            styles.categoryOptionTextSelected,
+                        ]}
+                      >
+                        {category.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Stock</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.stock}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, stock: text })
+                  }
+                  placeholder="0"
+                  keyboardType="number-pad"
+                />
+
+                <UOMManager
+                  baseUom={formData.base_uom}
+                  uomList={formData.uom_list}
+                  onChange={(baseUom, uomList) =>
+                    setFormData({
+                      ...formData,
+                      base_uom: baseUom,
+                      uom_list: uomList,
+                    })
+                  }
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setProductModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
-                ))}
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveProduct}
+                  >
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-
-              <Text style={styles.label}>Stock</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.stock}
-                onChangeText={(text) => setFormData({ ...formData, stock: text })}
-                placeholder="0"
-                keyboardType="number-pad"
-              />
-
-              <UOMManager
-                baseUom={formData.base_uom}
-                uomList={formData.uom_list}
-                onChange={(baseUom, uomList) =>
-                  setFormData({ ...formData, base_uom: baseUom, uom_list: uomList })
-                }
-              />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setProductModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSaveProduct}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -476,41 +521,55 @@ export default function ProductsScreen() {
         visible={categoryModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setCategoryModalVisible(false)}>
+        onRequestClose={() => setCategoryModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {editingCategory ? 'Edit Category' : 'Add Category'}
             </Text>
 
-            <View style={styles.form}>
-              <Text style={styles.label}>Category Name *</Text>
-              <TextInput
-                style={styles.input}
-                value={categoryFormData.name}
-                onChangeText={(text) => setCategoryFormData({ ...categoryFormData, name: text })}
-                placeholder="Enter category name"
-              />
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.form}>
+                <Text style={styles.label}>Category Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={categoryFormData.name}
+                  onChangeText={(text) =>
+                    setCategoryFormData({ ...categoryFormData, name: text })
+                  }
+                  placeholder="Enter category name"
+                />
 
-              <Text style={styles.label}>Color</Text>
-              <TextInput
-                style={styles.input}
-                value={categoryFormData.color}
-                onChangeText={(text) => setCategoryFormData({ ...categoryFormData, color: text })}
-                placeholder="#3B82F6"
-              />
+                <Text style={styles.label}>Color</Text>
+                <TextInput
+                  style={styles.input}
+                  value={categoryFormData.color}
+                  onChangeText={(text) =>
+                    setCategoryFormData({ ...categoryFormData, color: text })
+                  }
+                  placeholder="#3B82F6"
+                />
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setCategoryModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSaveCategory}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setCategoryModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSaveCategory}
+                  >
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -702,6 +761,10 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalScroll: {
+    flex: 1,
   },
   modalTitle: {
     fontSize: 20,

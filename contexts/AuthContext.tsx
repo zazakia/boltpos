@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { LoadingScreen } from '@/components/LoadingScreen';
 
 type Profile = {
   id: string;
@@ -29,17 +30,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id);
-      } else {
+    // Add a timeout to prevent indefinite loading
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn(
+          'Authentication check timed out, proceeding without session',
+        );
         setLoading(false);
       }
-    });
+    }, 10000); // 10 second timeout
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(timeoutId);
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          loadProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        console.error('Error getting session:', error);
+        setLoading(false);
+      });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       (async () => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -52,8 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })();
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
+  }, [loading]);
 
   const loadProfile = async (userId: string) => {
     try {
@@ -105,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       // Clear local state immediately after sign out
       setSession(null);
       setUser(null);
@@ -117,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const createAdminUser = async () => {
-    const adminEmail = 'admin@boltpos.com';
+    const adminEmail = 'admin@zappos.com';
     const adminPassword = 'Admin123!';
     const adminName = 'Admin User';
 
@@ -128,7 +152,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       } catch (signInError: any) {
         // If sign in fails, check if it's because the user doesn't exist
-        if (signInError.message && signInError.message.includes('Invalid login credentials')) {
+        if (
+          signInError.message &&
+          signInError.message.includes('Invalid login credentials')
+        ) {
           // User doesn't exist, continue with creation
         } else {
           // Some other error, re-throw it
@@ -143,7 +170,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       // If there's an error and it's not "User already registered", throw it
-      if (signUpError && !signUpError.message.includes('User already registered')) {
+      if (
+        signUpError &&
+        !signUpError.message.includes('User already registered')
+      ) {
         throw signUpError;
       }
 
@@ -160,12 +190,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!existingProfile) {
           // Create admin profile
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: data.user.id,
-            email: data.user.email!,
-            full_name: adminName,
-            role: 'admin',
-          });
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              email: data.user.email!,
+              full_name: adminName,
+              role: 'admin',
+            });
 
           if (profileError) throw profileError;
         }
@@ -186,6 +218,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     createAdminUser,
   };
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

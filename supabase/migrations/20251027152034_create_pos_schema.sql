@@ -1,17 +1,17 @@
--- POS System Database Schema
--- 
+-- ZapPOS System Database Schema
+--
 -- 1. New Tables
 --    - profiles: User profiles linked to auth.users
 --    - categories: Product categories with colors for UI
 --    - products: Items for sale with pricing and inventory
 --    - orders: Customer orders with totals and payment info
 --    - order_items: Line items for each order
--- 
+--
 -- 2. Security
 --    - Enable RLS on all tables
 --    - Authenticated users can manage their data
 --    - Admins can manage products and categories
--- 
+--
 -- 3. Important Notes
 --    - Prices stored as numeric for precision
 --    - Order items snapshot prices for historical accuracy
@@ -235,9 +235,9 @@ ON CONFLICT DO NOTHING;
 
 -- Insert sample products
 INSERT INTO products (name, price, category_id, stock, active)
-SELECT 
-  'Sample Product', 
-  9.99, 
+SELECT
+  'Sample Product',
+  9.99,
   (SELECT id FROM categories WHERE name = 'Food' LIMIT 1),
   100,
   true

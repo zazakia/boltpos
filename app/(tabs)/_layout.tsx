@@ -1,5 +1,11 @@
 import { Tabs } from 'expo-router';
-import { ShoppingCart, Package, Receipt, User, Users } from 'lucide-react-native';
+import {
+  ShoppingCart,
+  Package,
+  Receipt,
+  User,
+  Users,
+} from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -20,11 +26,12 @@ export default function TabLayout() {
           fontSize: 12,
           fontWeight: '600',
         },
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'POS',
+          title: 'ZapPOS',
           tabBarIcon: ({ size, color }) => (
             <ShoppingCart size={size} color={color} />
           ),
@@ -52,18 +59,14 @@ export default function TabLayout() {
         name="users"
         options={{
           title: 'Users',
-          tabBarIcon: ({ size, color }) => (
-            <Users size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <Users size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ size, color }) => (
-            <User size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
         }}
       />
       <Tabs.Screen

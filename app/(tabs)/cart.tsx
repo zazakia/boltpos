@@ -14,16 +14,34 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { supabase } from '@/lib/supabase';
 import { formatPrice } from '@/utils/currency';
-import { ArrowLeft, CreditCard, Banknote, Smartphone, Plus, Minus, Trash2 } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  CreditCard,
+  Banknote,
+  Smartphone,
+  Plus,
+  Minus,
+  Trash2,
+} from 'lucide-react-native';
 
 export default function CartScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { cart, removeFromCart, updateQuantity, clearCart, getCartTotal, getCartCount } = useCart();
+  const {
+    cart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    getCartTotal,
+    getCartCount,
+  } = useCart();
   const [processingPayment, setProcessingPayment] = useState(false);
-  
+
   const getSubtotal = () => {
-    return cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    return cart.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0,
+    );
   };
 
   const getTax = () => {
@@ -34,12 +52,85 @@ export default function CartScreen() {
     return getSubtotal() + getTax();
   };
 
+  const updateInventory = async (orderItems: any[]) => {
+    try {
+      // Group items by product to handle multiple cart items of same product
+      const productQuantities: { [key: string]: number } = {};
+
+      orderItems.forEach((item) => {
+        if (productQuantities[item.product_id]) {
+          productQuantities[item.product_id] += item.quantity;
+        } else {
+          productQuantities[item.product_id] = item.quantity;
+        }
+      });
+
+      // Update stock for each product
+      const updatePromises = Object.entries(productQuantities).map(
+        ([productId, quantity]) => {
+          return supabase.rpc('decrement_stock', {
+            p_product_id: productId,
+            p_quantity: quantity,
+          });
+        },
+      );
+
+      const results = await Promise.all(updatePromises);
+
+      // Check for any errors in stock updates
+      const errors = results.filter((result) => result.error);
+      if (errors.length > 0) {
+        console.warn('Some inventory updates failed:', errors);
+        // Don't fail the order, but log the issue
+      }
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+      // Don't fail the order, but log the issue
+    }
+  };
+
   const handleCheckout = async (paymentMethod: 'cash' | 'card' | 'mobile') => {
     if (!user || cart.length === 0) return;
 
     setProcessingPayment(true);
 
     try {
+      // Check stock availability first
+      const stockChecks = await Promise.all(
+        cart.map(async (item) => {
+          const { data: product } = await supabase
+            .from('products')
+            .select('stock, name')
+            .eq('id', item.product.id)
+            .single();
+
+          return {
+            product: product,
+            requested: item.quantity,
+            productName: item.product.name,
+          };
+        }),
+      );
+
+      // Check if any items have insufficient stock
+      const insufficientStock = stockChecks.filter(
+        (check) => !check.product || check.product.stock < check.requested,
+      );
+
+      if (insufficientStock.length > 0) {
+        const itemNames = insufficientStock
+          .map((item) => item.productName)
+          .join(', ');
+        Alert.alert(
+          'Insufficient Stock',
+          `The following items don't have enough stock: ${itemNames}`,
+          [{ text: 'OK' }],
+        );
+        setProcessingPayment(false);
+        return;
+      }
+
+      // Start transaction
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -60,6 +151,9 @@ export default function CartScreen() {
         quantity: item.quantity,
         price: item.product.price,
         subtotal: item.product.price * item.quantity,
+        uom: item.product.base_uom || 'piece',
+        conversion_to_base: 1.0,
+        base_quantity: item.quantity,
       }));
 
       const { error: itemsError } = await supabase
@@ -68,15 +162,21 @@ export default function CartScreen() {
 
       if (itemsError) throw itemsError;
 
+      // Update inventory after successful order creation
+      await updateInventory(orderItems);
+
       // Clear cart
       clearCart();
-      
-      Alert.alert('Success', 'Order placed successfully!', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') }
+
+      Alert.alert('Success', 'Order placed successfully! Inventory updated.', [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') },
       ]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing order:', error);
-      Alert.alert('Error', 'Failed to process order. Please try again.');
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to process order. Please try again.',
+      );
     } finally {
       setProcessingPayment(false);
     }
@@ -85,7 +185,7 @@ export default function CartScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
@@ -93,9 +193,7 @@ export default function CartScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cart</Text>
         <View style={styles.cartSummaryHeader}>
-          <Text style={styles.cartSummaryText}>
-            {getCartCount()} items
-          </Text>
+          <Text style={styles.cartSummaryText}>{getCartCount()} items</Text>
           <Text style={styles.cartSummaryText}>
             Total: {formatPrice(getCartTotal())}
           </Text>
@@ -106,7 +204,7 @@ export default function CartScreen() {
         {cart.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateText}>Your cart is empty</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.continueShoppingButton}
               onPress={() => router.replace('/(tabs)')}
             >
@@ -127,18 +225,25 @@ export default function CartScreen() {
                   <View style={styles.cartItemActions}>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.product.id, item.quantity - 1)}>
+                      onPress={() =>
+                        updateQuantity(item.product.id, item.quantity - 1)
+                      }
+                    >
                       <Minus size={16} color="#6B7280" />
                     </TouchableOpacity>
                     <Text style={styles.quantityText}>{item.quantity}</Text>
                     <TouchableOpacity
                       style={styles.quantityButton}
-                      onPress={() => updateQuantity(item.product.id, item.quantity + 1)}>
+                      onPress={() =>
+                        updateQuantity(item.product.id, item.quantity + 1)
+                      }
+                    >
                       <Plus size={16} color="#6B7280" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.removeButton}
-                      onPress={() => removeFromCart(item.product.id)}>
+                      onPress={() => removeFromCart(item.product.id)}
+                    >
                       <Trash2 size={16} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
@@ -149,7 +254,9 @@ export default function CartScreen() {
             <View style={styles.cartSummary}>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
-                <Text style={styles.summaryValue}>{formatPrice(getSubtotal())}</Text>
+                <Text style={styles.summaryValue}>
+                  {formatPrice(getSubtotal())}
+                </Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Tax (10%)</Text>
@@ -176,23 +283,24 @@ export default function CartScreen() {
                 [
                   {
                     text: 'Cash',
-                    onPress: () => handleCheckout('cash')
+                    onPress: () => handleCheckout('cash'),
                   },
                   {
                     text: 'Card',
-                    onPress: () => handleCheckout('card')
+                    onPress: () => handleCheckout('card'),
                   },
                   {
                     text: 'Mobile Payment',
-                    onPress: () => handleCheckout('mobile')
+                    onPress: () => handleCheckout('mobile'),
                   },
                   {
                     text: 'Cancel',
-                    style: 'cancel'
-                  }
-                ]
+                    style: 'cancel',
+                  },
+                ],
               );
-            }}>
+            }}
+          >
             <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
           </TouchableOpacity>
         </View>

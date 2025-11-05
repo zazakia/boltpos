@@ -1,4 +1,12 @@
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Mail, Shield, LogOut, Users } from 'lucide-react-native';
@@ -13,27 +21,26 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
 
   const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              // Use navigate instead of replace to ensure proper stack management
-              router.navigate('/(auth)/login');
-            } catch (error: any) {
-              console.error('Sign out error:', error);
-              Alert.alert('Error', error.message || 'Failed to sign out. Please try again.');
-            }
-          },
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await signOut();
+            // Use navigate instead of replace to ensure proper stack management
+            router.navigate('/(auth)/login');
+          } catch (error: any) {
+            console.error('Sign out error:', error);
+            Alert.alert(
+              'Error',
+              error.message || 'Failed to sign out. Please try again.',
+            );
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleSave = async () => {
@@ -90,7 +97,9 @@ export default function ProfileScreen() {
                     placeholder="Enter your name"
                   />
                 ) : (
-                  <Text style={styles.infoValue}>{profile?.full_name || 'Not set'}</Text>
+                  <Text style={styles.infoValue}>
+                    {profile?.full_name || 'Not set'}
+                  </Text>
                 )}
               </View>
             </View>
@@ -129,20 +138,25 @@ export default function ProfileScreen() {
                     setEditing(false);
                     setFullName(profile?.full_name || '');
                   }}
-                  disabled={saving}>
+                  disabled={saving}
+                >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.saveButton, saving && styles.buttonDisabled]}
                   onPress={handleSave}
-                  disabled={saving}>
+                  disabled={saving}
+                >
                   <Text style={styles.saveButtonText}>
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Text>
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity style={styles.editButton} onPress={() => setEditing(true)}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => setEditing(true)}
+              >
                 <Text style={styles.editButtonText}>Edit Profile</Text>
               </TouchableOpacity>
             )}
@@ -153,7 +167,10 @@ export default function ProfileScreen() {
         {profile?.role === 'admin' && (
           <View style={styles.adminSection}>
             <Text style={styles.adminTitle}>Admin Tools</Text>
-            <TouchableOpacity style={styles.adminButton} onPress={navigateToUsers}>
+            <TouchableOpacity
+              style={styles.adminButton}
+              onPress={navigateToUsers}
+            >
               <Users size={20} color="#3B82F6" />
               <Text style={styles.adminButtonText}>Manage Users</Text>
             </TouchableOpacity>
@@ -166,8 +183,10 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>POS System v1.0</Text>
-          <Text style={styles.footerSubtext}>Built with React Native & Supabase</Text>
+          <Text style={styles.footerText}>ZapPOS System v1.0</Text>
+          <Text style={styles.footerSubtext}>
+            Built with React Native & Supabase
+          </Text>
         </View>
       </View>
     </SafeAreaView>

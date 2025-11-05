@@ -15,7 +15,14 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { formatPrice } from '@/utils/currency';
-import { Plus, Minus, ShoppingCart, CreditCard, Banknote, Smartphone } from 'lucide-react-native';
+import {
+  Plus,
+  Minus,
+  ShoppingCart,
+  CreditCard,
+  Banknote,
+  Smartphone,
+} from 'lucide-react-native';
 
 type Category = {
   id: string;
@@ -101,8 +108,8 @@ export default function POSScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Point of Sale</Text>
-        <TouchableOpacity 
+        <Text style={styles.headerTitle}>ZapPOS</Text>
+        <TouchableOpacity
           style={styles.cartButton}
           onPress={() => router.push('/(tabs)/cart')}
         >
@@ -129,11 +136,24 @@ export default function POSScreen() {
 
       <View style={styles.content}>
         <View style={styles.productsSection}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoriesScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoriesScroll}
+          >
             <TouchableOpacity
-              style={[styles.categoryChip, !selectedCategory && styles.categoryChipActive]}
-              onPress={() => setSelectedCategory(null)}>
-              <Text style={[styles.categoryText, !selectedCategory && styles.categoryTextActive]}>
+              style={[
+                styles.categoryChip,
+                !selectedCategory && styles.categoryChipActive,
+              ]}
+              onPress={() => setSelectedCategory(null)}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  !selectedCategory && styles.categoryTextActive,
+                ]}
+              >
                 All
               </Text>
             </TouchableOpacity>
@@ -145,40 +165,66 @@ export default function POSScreen() {
                   selectedCategory === category.id && styles.categoryChipActive,
                   { borderColor: category.color },
                 ]}
-                onPress={() => setSelectedCategory(category.id)}>
+                onPress={() => setSelectedCategory(category.id)}
+              >
                 <Text
                   style={[
                     styles.categoryText,
-                    selectedCategory === category.id && styles.categoryTextActive,
-                  ]}>
+                    selectedCategory === category.id &&
+                      styles.categoryTextActive,
+                  ]}
+                >
                   {category.name}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          <ScrollView style={styles.productsGrid}>
+          <ScrollView
+            style={styles.productsGrid}
+            contentContainerStyle={styles.productsGridContent}
+            showsVerticalScrollIndicator={true}
+          >
             <View style={styles.productsRow}>
               {filteredProducts.map((product) => (
                 <TouchableOpacity
                   key={product.id}
                   style={styles.productCard}
-                  onPress={() => handleAddToCart(product)}>
-                  <Text style={styles.productName}>{product.name}</Text>
-                  <Text style={styles.productPrice}>{formatPrice(product.price)}</Text>
-                  <Text style={styles.productStock}>Stock: {product.stock}</Text>
-                  <TouchableOpacity 
+                  onPress={() => handleAddToCart(product)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {product.name}
+                  </Text>
+                  <Text style={styles.productPrice}>
+                    {formatPrice(product.price)}
+                  </Text>
+                  <Text style={styles.productStock}>
+                    Stock: {product.stock}
+                  </Text>
+                  <TouchableOpacity
                     style={styles.addToCartButton}
                     onPress={(e) => {
                       e.stopPropagation();
                       handleAddToCart(product);
                     }}
+                    activeOpacity={0.8}
                   >
                     <Plus size={16} color="#FFFFFF" />
                     <Text style={styles.addToCartText}>Add</Text>
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
+              {filteredProducts.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>No products found</Text>
+                  {selectedCategory && (
+                    <Text style={styles.emptyStateSubtext}>
+                      Try selecting a different category
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -187,7 +233,8 @@ export default function POSScreen() {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.viewCartButton}
-          onPress={() => router.push('/(tabs)/cart')}>
+          onPress={() => router.push('/(tabs)/cart')}
+        >
           <ShoppingCart size={20} color="#FFFFFF" />
           <Text style={styles.viewCartText}>View Cart</Text>
           {getCartCount() > 0 && (
@@ -202,7 +249,8 @@ export default function POSScreen() {
         visible={checkoutModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setCheckoutModal(false)}>
+        onRequestClose={() => setCheckoutModal(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Select Payment Method</Text>
@@ -211,7 +259,8 @@ export default function POSScreen() {
             <TouchableOpacity
               style={styles.paymentOption}
               onPress={() => handleCheckout('cash')}
-              disabled={processingPayment}>
+              disabled={processingPayment}
+            >
               <Banknote size={24} color="#10B981" />
               <Text style={styles.paymentOptionText}>Cash</Text>
             </TouchableOpacity>
@@ -219,7 +268,8 @@ export default function POSScreen() {
             <TouchableOpacity
               style={styles.paymentOption}
               onPress={() => handleCheckout('card')}
-              disabled={processingPayment}>
+              disabled={processingPayment}
+            >
               <CreditCard size={24} color="#3B82F6" />
               <Text style={styles.paymentOptionText}>Card</Text>
             </TouchableOpacity>
@@ -227,19 +277,25 @@ export default function POSScreen() {
             <TouchableOpacity
               style={styles.paymentOption}
               onPress={() => handleCheckout('mobile')}
-              disabled={processingPayment}>
+              disabled={processingPayment}
+            >
               <Smartphone size={24} color="#8B5CF6" />
               <Text style={styles.paymentOptionText}>Mobile Payment</Text>
             </TouchableOpacity>
 
             {processingPayment && (
-              <ActivityIndicator size="large" color="#3B82F6" style={styles.modalLoader} />
+              <ActivityIndicator
+                size="large"
+                color="#3B82F6"
+                style={styles.modalLoader}
+              />
             )}
 
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={() => setCheckoutModal(false)}
-              disabled={processingPayment}>
+              disabled={processingPayment}
+            >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -341,18 +397,29 @@ const styles = StyleSheet.create({
   productsGrid: {
     flex: 1,
   },
+  productsGridContent: {
+    paddingBottom: 16,
+  },
   productsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    justifyContent: 'space-between',
   },
   productCard: {
     width: '48%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    minHeight: 140,
+    justifyContent: 'space-between',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   productName: {
     fontSize: 16,
@@ -385,6 +452,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
+    width: '100%',
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   bottomBar: {
     backgroundColor: '#FFFFFF',

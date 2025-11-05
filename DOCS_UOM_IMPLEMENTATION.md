@@ -1,6 +1,6 @@
 # Unit of Measure (UOM) Implementation
 
-This document explains the multiple unit of measure feature implemented in the BoltPOS system.
+This document explains the multiple unit of measure feature implemented in the ZapPOS system.
 
 ## Overview
 

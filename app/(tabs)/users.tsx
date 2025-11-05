@@ -115,7 +115,10 @@ export default function UsersScreen() {
     try {
       // Note: In a real app, you would use Supabase's admin API to reset passwords
       // This is a simplified example
-      Alert.alert('Info', 'Password reset functionality would be implemented here');
+      Alert.alert(
+        'Info',
+        'Password reset functionality would be implemented here',
+      );
       setShowPasswordModal(false);
     } catch (error: any) {
       console.error('Error resetting password:', error);
@@ -190,12 +193,11 @@ export default function UsersScreen() {
                         {
                           backgroundColor: roleBadge.bgColor,
                         },
-                      ]}>
+                      ]}
+                    >
                       <Text
-                        style={[
-                          styles.roleText,
-                          { color: roleBadge.color },
-                        ]}>
+                        style={[styles.roleText, { color: roleBadge.color }]}
+                      >
                         {roleBadge.text}
                       </Text>
                     </View>
@@ -205,12 +207,14 @@ export default function UsersScreen() {
                 <View style={styles.userActions}>
                   <TouchableOpacity
                     style={styles.editButton}
-                    onPress={() => openEditModal(user)}>
+                    onPress={() => openEditModal(user)}
+                  >
                     <Edit2 size={18} color="#3B82F6" />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.passwordButton}
-                    onPress={() => openPasswordModal(user.id)}>
+                    onPress={() => openPasswordModal(user.id)}
+                  >
                     <Key size={18} color="#8B5CF6" />
                   </TouchableOpacity>
                 </View>
@@ -225,69 +229,83 @@ export default function UsersScreen() {
         visible={modalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}>
+        onRequestClose={() => setModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
               {editingUser ? 'Edit User' : 'Add User'}
             </Text>
 
-            <View style={styles.form}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.full_name}
-                onChangeText={(text) => setFormData({ ...formData, full_name: text })}
-                placeholder="Enter full name"
-              />
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.form}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.full_name}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, full_name: text })
+                  }
+                  placeholder="Enter full name"
+                />
 
-              <Text style={styles.label}>Role</Text>
-              <View style={styles.rolePicker}>
-                <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    formData.role === 'staff' && styles.roleOptionSelected,
-                  ]}
-                  onPress={() => setFormData({ ...formData, role: 'staff' })}
-                >
-                  <Text
+                <Text style={styles.label}>Role</Text>
+                <View style={styles.rolePicker}>
+                  <TouchableOpacity
                     style={[
-                      styles.roleOptionText,
-                      formData.role === 'staff' && styles.roleOptionTextSelected,
+                      styles.roleOption,
+                      formData.role === 'staff' && styles.roleOptionSelected,
                     ]}
+                    onPress={() => setFormData({ ...formData, role: 'staff' })}
                   >
-                    Staff
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.roleOption,
-                    formData.role === 'admin' && styles.roleOptionSelected,
-                  ]}
-                  onPress={() => setFormData({ ...formData, role: 'admin' })}
-                >
-                  <Text
+                    <Text
+                      style={[
+                        styles.roleOptionText,
+                        formData.role === 'staff' &&
+                          styles.roleOptionTextSelected,
+                      ]}
+                    >
+                      Staff
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={[
-                      styles.roleOptionText,
-                      formData.role === 'admin' && styles.roleOptionTextSelected,
+                      styles.roleOption,
+                      formData.role === 'admin' && styles.roleOptionSelected,
                     ]}
+                    onPress={() => setFormData({ ...formData, role: 'admin' })}
                   >
-                    Admin
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                    <Text
+                      style={[
+                        styles.roleOptionText,
+                        formData.role === 'admin' &&
+                          styles.roleOptionTextSelected,
+                      ]}
+                    >
+                      Admin
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleSave}
+                  >
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -297,32 +315,44 @@ export default function UsersScreen() {
         visible={showPasswordModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowPasswordModal(false)}>
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Reset Password</Text>
 
-            <View style={styles.form}>
-              <Text style={styles.label}>New Password</Text>
-              <TextInput
-                style={styles.input}
-                value={passwordData.password}
-                onChangeText={(text) => setPasswordData({ ...passwordData, password: text })}
-                placeholder="Enter new password"
-                secureTextEntry
-              />
+            <ScrollView
+              style={styles.modalScroll}
+              showsVerticalScrollIndicator={true}
+            >
+              <View style={styles.form}>
+                <Text style={styles.label}>New Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={passwordData.password}
+                  onChangeText={(text) =>
+                    setPasswordData({ ...passwordData, password: text })
+                  }
+                  placeholder="Enter new password"
+                  secureTextEntry
+                />
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setShowPasswordModal(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleResetPassword}>
-                  <Text style={styles.saveButtonText}>Reset Password</Text>
-                </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => setShowPasswordModal(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={handleResetPassword}
+                  >
+                    <Text style={styles.saveButtonText}>Reset Password</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -463,6 +493,10 @@ const styles = StyleSheet.create({
     padding: 24,
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalScroll: {
+    flex: 1,
   },
   modalTitle: {
     fontSize: 20,
