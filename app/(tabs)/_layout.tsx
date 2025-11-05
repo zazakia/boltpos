@@ -3,7 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { ShoppingCart, Package, Receipt, User, Users, Database } from 'lucide-react-native';
+import { Home, ShoppingCart, Package, Receipt, User, Users, Database, Calculator, Bell, FileText } from 'lucide-react-native';
 
 export default function TabLayout() {
   const { session, loading } = useAuth();
@@ -53,12 +53,31 @@ export default function TabLayout() {
           fontWeight: '600',
         },
       }}>
+      {/* Dashboard as the main screen */}
+      <Tabs.Screen
+        name="dashboard"
+        options={{
+          title: 'Dashboard',
+          tabBarIcon: ({ size, color }) => (
+            <Home size={size} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen
         name="index"
         options={{
           title: 'POS',
           tabBarIcon: ({ size, color }) => (
             <ShoppingCart size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="products"
+        options={{
+          title: 'Products',
+          tabBarIcon: ({ size, color }) => (
+            <Package size={size} color={color} />
           ),
         }}
       />
@@ -72,11 +91,29 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="products"
+        name="alerts"
         options={{
-          title: 'Products',
+          title: 'Alerts',
           tabBarIcon: ({ size, color }) => (
-            <Package size={size} color={color} />
+            <Bell size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reports"
+        options={{
+          title: 'Reports',
+          tabBarIcon: ({ size, color }) => (
+            <FileText size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="accounting"
+        options={{
+          title: 'Accounting',
+          tabBarIcon: ({ size, color }) => (
+            <Calculator size={size} color={color} />
           ),
         }}
       />
