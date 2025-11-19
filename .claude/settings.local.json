@@ -7,7 +7,13 @@
       "Bash(npm run dev)",
       "Bash(set:*)",
       "Bash(expo start)",
-      "Bash(npx expo start:*)"
+      "Bash(npx expo start:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(del nul 2)",
+      "Bash(NUL)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

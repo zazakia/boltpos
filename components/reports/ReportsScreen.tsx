@@ -31,6 +31,8 @@ import {
 import { formatPrice } from '@/utils/currency';
 import { dataManagerService } from '@/services/dataManager.service';
 import { accountingService } from '@/services/accounting.service';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type ReportType = 
   | 'inventory_summary'
@@ -84,6 +86,7 @@ type ExportOptions = {
 };
 
 export default function ReportsScreen() {
+  const { hasPermission, hasAnyPermission, permissions } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory>('inventory');
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(null);
@@ -94,6 +97,14 @@ export default function ReportsScreen() {
   });
   const [generatedReport, setGeneratedReport] = useState<ReportData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Permission checks for reports
+  const canViewInventoryReports = hasPermission('VIEW_INVENTORY_REPORTS');
+  const canViewSalesReports = hasPermission('VIEW_SALES_REPORTS');
+  const canViewProcurementReports = hasPermission('VIEW_PROCUREMENT_REPORTS');
+  const canViewFinancialReports = hasPermission('VIEW_FINANCIAL_REPORTS');
+  const canExportReports = hasPermission('EXPORT_REPORTS');
+  const canGenerateReports = hasPermission('GENERATE_REPORTS');
 
   const reportDefinitions: ReportDefinition[] = [
     {
@@ -261,58 +272,85 @@ export default function ReportsScreen() {
 
   const filteredReports = reportDefinitions.filter(report => {
     const matchesCategory = report.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch = searchQuery === '' ||
       report.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       report.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    
+    // Check permissions based on report category
+    const hasCategoryPermission =
+      (report.category === 'inventory' && canViewInventoryReports) ||
+      (report.category === 'sales' && canViewSalesReports) ||
+      (report.category === 'procurement' && canViewProcurementReports) ||
+      (report.category === 'financial' && canViewFinancialReports);
+    
+    return matchesCategory && matchesSearch && hasCategoryPermission;
   });
 
   const generateReport = async (reportType: ReportType, options: ExportOptions) => {
+    if (!canGenerateReports) {
+      Alert.alert('Access Denied', 'You do not have permission to generate reports.');
+      return;
+    }
+
     setLoading(true);
     try {
       let reportData: ReportData;
 
       switch (reportType) {
         case 'inventory_summary':
+          if (!canViewInventoryReports) throw new Error('No permission for inventory reports');
           reportData = await generateInventorySummaryReport();
           break;
         case 'inventory_valuation':
+          if (!canViewInventoryReports) throw new Error('No permission for inventory reports');
           reportData = await generateInventoryValuationReport();
           break;
         case 'stock_movement':
+          if (!canViewInventoryReports) throw new Error('No permission for inventory reports');
           reportData = await generateStockMovementReport(options);
           break;
         case 'expiry_tracking':
+          if (!canViewInventoryReports) throw new Error('No permission for inventory reports');
           reportData = await generateExpiryTrackingReport(options);
           break;
         case 'pos_sales_daily':
+          if (!canViewSalesReports) throw new Error('No permission for sales reports');
           reportData = await generatePOSSalesDailyReport(options);
           break;
         case 'pos_sales_product':
+          if (!canViewSalesReports) throw new Error('No permission for sales reports');
           reportData = await generatePOSSalesProductReport(options);
           break;
         case 'best_sellers':
+          if (!canViewSalesReports) throw new Error('No permission for sales reports');
           reportData = await generateBestSellersReport(options);
           break;
         case 'sales_orders':
+          if (!canViewSalesReports) throw new Error('No permission for sales reports');
           reportData = await generateSalesOrdersReport(options);
           break;
         case 'purchase_orders':
+          if (!canViewProcurementReports) throw new Error('No permission for procurement reports');
           reportData = await generatePurchaseOrdersReport(options);
           break;
         case 'supplier_performance':
+          if (!canViewProcurementReports) throw new Error('No permission for procurement reports');
           reportData = await generateSupplierPerformanceReport(options);
           break;
         case 'accounts_payable':
+          if (!canViewFinancialReports) throw new Error('No permission for financial reports');
           reportData = await generateAccountsPayableReport(options);
           break;
         case 'accounts_receivable':
+          if (!canViewFinancialReports) throw new Error('No permission for financial reports');
           reportData = await generateAccountsReceivableReport(options);
           break;
         case 'expenses':
+          if (!canViewFinancialReports) throw new Error('No permission for financial reports');
           reportData = await generateExpensesReport(options);
           break;
         case 'profit_loss':
+          if (!canViewFinancialReports) throw new Error('No permission for financial reports');
           reportData = await generateProfitLossReport(options);
           break;
         default:
@@ -911,6 +949,11 @@ export default function ReportsScreen() {
   };
 
   const exportReport = async (format: 'csv' | 'excel' | 'pdf') => {
+    if (!canExportReports) {
+      Alert.alert('Access Denied', 'You do not have permission to export reports.');
+      return;
+    }
+
     if (!generatedReport) {
       Alert.alert('Error', 'No report generated to export');
       return;
@@ -959,205 +1002,255 @@ export default function ReportsScreen() {
     const reportDef = reportDefinitions.find(r => r.id === selectedReport);
     
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setSelectedReport(null)}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{reportDef?.name}</Text>
-          <View style={{ width: 50 }} />
-        </View>
-
-        <ScrollView style={styles.content}>
-          <View style={styles.reportInfoSection}>
-            <Text style={styles.reportDescriptionDetail}>{reportDef?.description}</Text>
-            <Text style={styles.reportMetaDetail}>Estimated time: {reportDef?.estimatedTime}</Text>
+      <PermissionGuard
+        permission={[
+          'VIEW_INVENTORY_REPORTS',
+          'VIEW_SALES_REPORTS',
+          'VIEW_PROCUREMENT_REPORTS',
+          'VIEW_FINANCIAL_REPORTS'
+        ]}
+        fallback="You don't have permission to view reports."
+        requiresAll={false}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => setSelectedReport(null)}>
+              <Text style={styles.backButton}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>{reportDef?.name}</Text>
+            <View style={{ width: 50 }} />
           </View>
 
-          {reportDef?.hasDateRange && (
-            <View style={styles.dateRangeSection}>
-              <Text style={styles.sectionTitle}>Date Range</Text>
-              <View style={styles.dateInputContainer}>
-                <View style={styles.dateInput}>
-                  <Text style={styles.dateLabel}>From:</Text>
-                  <TextInput
-                    style={styles.dateInputField}
-                    value={dateRange.from}
-                    onChangeText={(text) => setDateRange(prev => ({ ...prev, from: text }))}
-                    placeholder="YYYY-MM-DD"
-                  />
-                </View>
-                <View style={styles.dateInput}>
-                  <Text style={styles.dateLabel}>To:</Text>
-                  <TextInput
-                    style={styles.dateInputField}
-                    value={dateRange.to}
-                    onChangeText={(text) => setDateRange(prev => ({ ...prev, to: text }))}
-                    placeholder="YYYY-MM-DD"
-                  />
+          <ScrollView style={styles.content}>
+            <View style={styles.reportInfoSection}>
+              <Text style={styles.reportDescriptionDetail}>{reportDef?.description}</Text>
+              <Text style={styles.reportMetaDetail}>Estimated time: {reportDef?.estimatedTime}</Text>
+            </View>
+
+            {reportDef?.hasDateRange && (
+              <View style={styles.dateRangeSection}>
+                <Text style={styles.sectionTitle}>Date Range</Text>
+                <View style={styles.dateInputContainer}>
+                  <View style={styles.dateInput}>
+                    <Text style={styles.dateLabel}>From:</Text>
+                    <TextInput
+                      style={styles.dateInputField}
+                      value={dateRange.from}
+                      onChangeText={(text) => setDateRange(prev => ({ ...prev, from: text }))}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
+                  <View style={styles.dateInput}>
+                    <Text style={styles.dateLabel}>To:</Text>
+                    <TextInput
+                      style={styles.dateInputField}
+                      value={dateRange.to}
+                      onChangeText={(text) => setDateRange(prev => ({ ...prev, to: text }))}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            )}
 
-          <TouchableOpacity
-            style={[styles.generateButton, loading && styles.generateButtonDisabled]}
-            onPress={() => generateReport(selectedReport, {
-              format: 'csv',
-              includeHeaders: true,
-              dateRange: reportDef?.hasDateRange ? dateRange : undefined
-            })}
-            disabled={loading}
-          >
-            <Text style={styles.generateButtonText}>
-              {loading ? 'Generating...' : 'Generate Report'}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
+            <TouchableOpacity
+              style={[styles.generateButton, loading && styles.generateButtonDisabled]}
+              onPress={() => generateReport(selectedReport, {
+                format: 'csv',
+                includeHeaders: true,
+                dateRange: reportDef?.hasDateRange ? dateRange : undefined
+              })}
+              disabled={loading}
+            >
+              <Text style={styles.generateButtonText}>
+                {loading ? 'Generating...' : 'Generate Report'}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </PermissionGuard>
     );
   }
 
   if (generatedReport) {
     return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => setGeneratedReport(null)}>
-            <Text style={styles.backButton}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Report Generated</Text>
-          <View style={{ flexDirection: 'row' }}>
-            <TouchableOpacity onPress={() => exportReport('csv')}>
-              <FileSpreadsheet size={24} color="#10B981" style={styles.exportIcon} />
+      <PermissionGuard
+        permission={[
+          'VIEW_INVENTORY_REPORTS',
+          'VIEW_SALES_REPORTS',
+          'VIEW_PROCUREMENT_REPORTS',
+          'VIEW_FINANCIAL_REPORTS'
+        ]}
+        fallback="You don't have permission to view reports."
+        requiresAll={false}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => setGeneratedReport(null)}>
+              <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => exportReport('pdf')}>
-              <FileText size={24} color="#EF4444" style={styles.exportIcon} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <ScrollView style={styles.content}>
-          {/* Report Summary */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Report Summary</Text>
-            {generatedReport.summary && Object.entries(generatedReport.summary).map(([key, value]) => (
-              <View key={key} style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>{key}:</Text>
-                <Text style={styles.summaryValue}>{value}</Text>
-              </View>
-            ))}
-            <Text style={styles.generatedAt}>
-              Generated: {new Date(generatedReport.metadata.generatedAt).toLocaleString()}
-            </Text>
+            <Text style={styles.headerTitle}>Report Generated</Text>
+            <View style={{ flexDirection: 'row' }}>
+              {canExportReports && (
+                <>
+                  <TouchableOpacity onPress={() => exportReport('csv')}>
+                    <FileSpreadsheet size={24} color="#10B981" style={styles.exportIcon} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => exportReport('pdf')}>
+                    <FileText size={24} color="#EF4444" style={styles.exportIcon} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
 
-          {/* Report Data Preview */}
-          <View style={styles.dataPreview}>
-            <Text style={styles.sectionTitle}>Data Preview (First 10 rows)</Text>
-            <View style={styles.tableContainer}>
-              <View style={styles.tableRow}>
-                {generatedReport.headers.map((header, index) => (
-                  <Text key={index} style={styles.tableHeader}>{header}</Text>
-                ))}
-              </View>
-              {generatedReport.rows.slice(0, 10).map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.tableRow}>
-                  {row.map((cell, cellIndex) => (
-                    <Text key={cellIndex} style={styles.tableCell}>{cell}</Text>
-                  ))}
+          <ScrollView style={styles.content}>
+            {/* Report Summary */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>Report Summary</Text>
+              {generatedReport.summary && Object.entries(generatedReport.summary).map(([key, value]) => (
+                <View key={key} style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>{key}:</Text>
+                  <Text style={styles.summaryValue}>{value}</Text>
                 </View>
               ))}
+              <Text style={styles.generatedAt}>
+                Generated: {new Date(generatedReport.metadata.generatedAt).toLocaleString()}
+              </Text>
             </View>
-            <Text style={styles.previewNote}>
-              Showing first 10 of {generatedReport.metadata.totalRecords} records
-            </Text>
-          </View>
-        </ScrollView>
-      </View>
+
+            {/* Report Data Preview */}
+            <View style={styles.dataPreview}>
+              <Text style={styles.sectionTitle}>Data Preview (First 10 rows)</Text>
+              <View style={styles.tableContainer}>
+                <View style={styles.tableRow}>
+                  {generatedReport.headers.map((header, index) => (
+                    <Text key={index} style={styles.tableHeader}>{header}</Text>
+                  ))}
+                </View>
+                {generatedReport.rows.slice(0, 10).map((row, rowIndex) => (
+                  <View key={rowIndex} style={styles.tableRow}>
+                    {row.map((cell, cellIndex) => (
+                      <Text key={cellIndex} style={styles.tableCell}>{cell}</Text>
+                    ))}
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.previewNote}>
+                Showing first 10 of {generatedReport.metadata.totalRecords} records
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </PermissionGuard>
     );
   }
 
+  // Filter category options based on permissions
+  const availableCategories = categoryOptions.filter(category => {
+    if (category.key === 'inventory') return canViewInventoryReports;
+    if (category.key === 'sales') return canViewSalesReports;
+    if (category.key === 'procurement') return canViewProcurementReports;
+    if (category.key === 'financial') return canViewFinancialReports;
+    return false;
+  });
+
+  // Check if user has any report access
+  const hasReportAccess = canViewInventoryReports || canViewSalesReports ||
+                         canViewProcurementReports || canViewFinancialReports;
+
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <FileText size={24} color="#3B82F6" />
-          <Text style={styles.headerTitle}>Reports & Analytics</Text>
-        </View>
-        <Download size={24} color="#6B7280" />
-      </View>
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Search size={20} color="#6B7280" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search reports..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {/* Category Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryContainer}>
-        {categoryOptions.map((category) => (
-          <TouchableOpacity
-            key={category.key}
-            style={[
-              styles.categoryChip,
-              selectedCategory === category.key && styles.categoryChipActive
-            ]}
-            onPress={() => setSelectedCategory(category.key)}
-          >
-            {category.icon}
-            <Text style={[
-              styles.categoryText,
-              selectedCategory === category.key && styles.categoryTextActive
-            ]}>
-              {category.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Reports Grid */}
-      <ScrollView style={styles.reportsList}>
-        {filteredReports.map((report) => (
-          <TouchableOpacity
-            key={report.id}
-            style={styles.reportCard}
-            onPress={() => setSelectedReport(report.id)}
-          >
-            <View style={styles.reportHeader}>
-              <View style={styles.reportIcon}>
-                {report.icon}
-              </View>
-              <View style={styles.reportInfo}>
-                <Text style={styles.reportName}>{report.name}</Text>
-                <Text style={styles.reportDescription}>{report.description}</Text>
-                <Text style={styles.reportMeta}>
-                  Est. {report.estimatedTime} • {report.exportFormats.join(', ')}
-                </Text>
-              </View>
-              <View style={styles.reportArrow}>
-                <Text style={styles.arrowText}>→</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
-
-        {filteredReports.length === 0 && (
-          <View style={styles.emptyState}>
-            <FileText size={48} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No Reports Found</Text>
-            <Text style={styles.emptyMessage}>
-              No reports match your current filter criteria.
-            </Text>
+    <PermissionGuard
+      permission={[
+        'VIEW_INVENTORY_REPORTS',
+        'VIEW_SALES_REPORTS',
+        'VIEW_PROCUREMENT_REPORTS',
+        'VIEW_FINANCIAL_REPORTS'
+      ]}
+      fallback="You don't have permission to view reports."
+      requiresAll={false}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <FileText size={24} color="#3B82F6" />
+            <Text style={styles.headerTitle}>Reports & Analytics</Text>
           </View>
-        )}
-      </ScrollView>
-    </View>
+          {canExportReports && <Download size={24} color="#6B7280" />}
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search size={20} color="#6B7280" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search reports..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        {/* Category Tabs */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryContainer}>
+          {availableCategories.map((category) => (
+            <TouchableOpacity
+              key={category.key}
+              style={[
+                styles.categoryChip,
+                selectedCategory === category.key && styles.categoryChipActive
+              ]}
+              onPress={() => setSelectedCategory(category.key)}
+            >
+              {category.icon}
+              <Text style={[
+                styles.categoryText,
+                selectedCategory === category.key && styles.categoryTextActive
+              ]}>
+                {category.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Reports Grid */}
+        <ScrollView style={styles.reportsList}>
+          {filteredReports.map((report) => (
+            <TouchableOpacity
+              key={report.id}
+              style={styles.reportCard}
+              onPress={() => setSelectedReport(report.id)}
+            >
+              <View style={styles.reportHeader}>
+                <View style={styles.reportIcon}>
+                  {report.icon}
+                </View>
+                <View style={styles.reportInfo}>
+                  <Text style={styles.reportName}>{report.name}</Text>
+                  <Text style={styles.reportDescription}>{report.description}</Text>
+                  <Text style={styles.reportMeta}>
+                    Est. {report.estimatedTime} • {report.exportFormats.join(', ')}
+                  </Text>
+                </View>
+                <View style={styles.reportArrow}>
+                  <Text style={styles.arrowText}>→</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          {filteredReports.length === 0 && (
+            <View style={styles.emptyState}>
+              <FileText size={48} color="#9CA3AF" />
+              <Text style={styles.emptyTitle}>No Reports Found</Text>
+              <Text style={styles.emptyMessage}>
+                {hasReportAccess
+                  ? 'No reports match your current filter criteria.'
+                  : 'You do not have permission to access reports.'
+                }
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    </PermissionGuard>
   );
 }
 

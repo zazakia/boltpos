@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions, PERMISSIONS } from '@/hooks/usePermissions';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { formatPrice } from '@/utils/currency';
 import {
   fetchProducts,
@@ -31,7 +33,7 @@ import {
   updateCategory,
   deleteCategory
 } from '@/services/products.service';
-import { Plus, Edit2, Trash2, Search, Check, X, Upload } from 'lucide-react-native';
+import { Plus, Edit2, Trash2, Search, Check, X, Upload, Shield, Lock } from 'lucide-react-native';
 
 type Category = {
   id: string;
@@ -64,6 +66,7 @@ type ProductWithCategories = {
 
 export default function ProductsScreen() {
   const { profile } = useAuth();
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +105,12 @@ export default function ProductsScreen() {
     '#F97316', // orange
   ];
 
-  const isAdmin = profile?.role === 'admin';
+  const canViewProducts = hasPermission(PERMISSIONS.VIEW_PRODUCTS);
+  const canCreateProducts = hasPermission(PERMISSIONS.CREATE_PRODUCTS);
+  const canEditProducts = hasPermission(PERMISSIONS.EDIT_PRODUCTS);
+  const canDeleteProducts = hasPermission(PERMISSIONS.DELETE_PRODUCTS);
+  const canManageProducts = hasPermission(PERMISSIONS.EDIT_PRODUCTS) &&
+                           hasPermission(PERMISSIONS.DELETE_PRODUCTS);
 
   useEffect(() => {
     loadData();
@@ -110,6 +118,12 @@ export default function ProductsScreen() {
 
   const loadData = async () => {
     try {
+      // Only load data if user has permission to view products
+      if (!canViewProducts) {
+        setLoading(false);
+        return;
+      }
+      
       const productsResult = await fetchProducts();
       
       if (productsResult.error) {
@@ -125,7 +139,7 @@ export default function ProductsScreen() {
       
       // Use the service to fetch categories
       const categoriesResult = await fetchCategories();
-        
+         
       if (categoriesResult.error) {
         console.error('Categories error:', categoriesResult.error);
         Alert.alert('Error', 'Failed to load categories. Please try again.');
@@ -143,9 +157,9 @@ export default function ProductsScreen() {
 
   // Compute filtered products based on search and active status
   const filteredProducts = products.filter((product) => {
-    // Filter by active status
-    if (!isAdmin && !product.active) return false;
-    if (isAdmin && !showInactive && !product.active) return false;
+    // Filter by active status based on user permissions
+    if (!canManageProducts && !product.active) return false;
+    if (canManageProducts && !showInactive && !product.active) return false;
     
     // Filter by search query
     if (searchQuery.trim()) {
@@ -259,6 +273,17 @@ export default function ProductsScreen() {
       return;
     }
 
+    // Check permissions before saving
+    if (!editingProduct && !canCreateProducts) {
+      Alert.alert('Access Denied', 'You do not have permission to create products');
+      return;
+    }
+    
+    if (editingProduct && !canEditProducts) {
+      Alert.alert('Access Denied', 'You do not have permission to edit products');
+      return;
+    }
+
     try {
       let imageUrl = selectedImageUri;
       
@@ -342,6 +367,12 @@ export default function ProductsScreen() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    // Check permission before showing delete dialog
+    if (!canDeleteProducts) {
+      Alert.alert('Access Denied', 'You do not have permission to delete products');
+      return;
+    }
+    
     Alert.alert(
       'Delete Product',
       'Are you sure you want to delete this product? This will mark it as inactive.',
@@ -367,6 +398,12 @@ export default function ProductsScreen() {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
+    // Check permission before showing delete dialog
+    if (!canEditProducts) {
+      Alert.alert('Access Denied', 'You do not have permission to manage categories');
+      return;
+    }
+    
     Alert.alert(
       'Delete Category',
       'Are you sure you want to delete this category? This will only delete the category, not the products in it.',
@@ -413,6 +450,12 @@ export default function ProductsScreen() {
   const handleBulkActivate = async () => {
     if (selectedProducts.size === 0) return;
     
+    // Check permission for bulk operations
+    if (!canManageProducts) {
+      Alert.alert('Access Denied', 'You do not have permission for bulk product operations');
+      return;
+    }
+    
     Alert.alert(
       'Activate Products',
       `Are you sure you want to activate ${selectedProducts.size} product(s)?`,
@@ -440,6 +483,12 @@ export default function ProductsScreen() {
 
   const handleBulkDeactivate = async () => {
     if (selectedProducts.size === 0) return;
+    
+    // Check permission for bulk operations
+    if (!canManageProducts) {
+      Alert.alert('Access Denied', 'You do not have permission for bulk product operations');
+      return;
+    }
     
     Alert.alert(
       'Deactivate Products',
@@ -479,7 +528,7 @@ export default function ProductsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Products</Text>
-        {isAdmin && (
+        {(canEditProducts || canManageProducts) && (
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.addButton} onPress={openAddCategoryModal}>
               <Plus size={20} color="#FFFFFF" />
@@ -504,7 +553,7 @@ export default function ProductsScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-        {isAdmin && (
+        {canManageProducts && (
           <View style={styles.filterRow}>
             <View style={styles.toggleContainer}>
               <Text style={styles.toggleLabel}>Show Inactive</Text>
@@ -549,7 +598,7 @@ export default function ProductsScreen() {
             </View>
           </View>
         )}
-        {selectionMode && selectedProducts.size > 0 && (
+        {selectionMode && selectedProducts.size > 0 && canManageProducts && (
           <View style={styles.bulkActions}>
             <TouchableOpacity
               style={[styles.bulkButton, styles.bulkActivate]}
@@ -567,37 +616,45 @@ export default function ProductsScreen() {
 
       <ScrollView style={styles.content}>
         {/* Categories Section */}
-        {isAdmin && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Categories</Text>
+        {canEditProducts && (
+          <PermissionGuard permissions={[PERMISSIONS.EDIT_PRODUCTS]} fallback={
+            <View style={styles.noDataMessage}>
+              <Lock size={32} color="#9CA3AF" />
+              <Text style={styles.noDataText}>Category Management</Text>
+              <Text style={styles.noDataSubtext}>Contact administrator for category permissions</Text>
             </View>
-            <View style={styles.categoriesList}>
-              {categories.map((category) => (
-                <View key={category.id} style={styles.categoryItem}>
-                  <View
-                    style={[
-                      styles.categoryColor,
-                      { backgroundColor: category.color },
-                    ]}
-                  />
-                  <Text style={styles.categoryName}>{category.name}</Text>
-                  <View style={styles.categoryActions}>
-                    <TouchableOpacity
-                      style={styles.editButton}
-                      onPress={() => openEditCategoryModal(category)}>
-                      <Edit2 size={18} color="#3B82F6" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteCategory(category.id)}>
-                      <Trash2 size={18} color="#EF4444" />
-                    </TouchableOpacity>
+          }>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Categories</Text>
+              </View>
+              <View style={styles.categoriesList}>
+                {categories.map((category) => (
+                  <View key={category.id} style={styles.categoryItem}>
+                    <View
+                      style={[
+                        styles.categoryColor,
+                        { backgroundColor: category.color },
+                      ]}
+                    />
+                    <Text style={styles.categoryName}>{category.name}</Text>
+                    <View style={styles.categoryActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => openEditCategoryModal(category)}>
+                        <Edit2 size={18} color="#3B82F6" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteCategory(category.id)}>
+                        <Trash2 size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
-          </View>
+          </PermissionGuard>
         )}
 
         {/* Products Section */}
@@ -610,7 +667,7 @@ export default function ProductsScreen() {
               <Text style={styles.emptyStateText}>
                 {searchQuery.trim() ? 'No products found' : 'No products yet'}
               </Text>
-              {isAdmin && !searchQuery.trim() && (
+              {canCreateProducts && !searchQuery.trim() && (
                 <TouchableOpacity style={styles.addButton} onPress={openAddProductModal}>
                   <Plus size={20} color="#FFFFFF" />
                   <Text style={styles.addButtonText}>Add Product</Text>
@@ -620,7 +677,7 @@ export default function ProductsScreen() {
           ) : (
             filteredProducts.map((product) => (
               <View key={product.id} style={styles.productCard}>
-                {selectionMode && (
+                {canManageProducts && selectionMode && (
                   <TouchableOpacity
                     style={[
                       styles.checkbox,
@@ -671,7 +728,27 @@ export default function ProductsScreen() {
                   </View>
                 )}
 
-                {isAdmin && !selectionMode && (
+                {canEditProducts && !canManageProducts && !selectionMode && (
+                  <View style={styles.productActions}>
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={() => openEditProductModal(product)}>
+                      <Edit2 size={18} color="#3B82F6" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {canDeleteProducts && !canManageProducts && !selectionMode && (
+                  <View style={styles.productActions}>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteProduct(product.id)}>
+                      <Trash2 size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {canEditProducts && canDeleteProducts && !canManageProducts && !selectionMode && (
                   <View style={styles.productActions}>
                     <TouchableOpacity
                       style={styles.editButton}
@@ -1285,5 +1362,48 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 8,
     marginBottom: 8,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  accessDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  accessDeniedText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  accessDeniedSubtext: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  noDataMessage: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  noDataText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });

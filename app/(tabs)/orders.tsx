@@ -17,6 +17,8 @@ import {
   fetchUserOrders,
   updateOrderStatus as updateOrderStatusService
 } from '@/services/orders.service';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type Order = {
   id: string;
@@ -46,6 +48,7 @@ type OrderWithItems = Order & {
 
 export default function OrdersScreen() {
   const { user, profile } = useAuth();
+  const { hasPermission, hasAnyPermission, permissions } = usePermissions();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<OrderWithItems | null>(null);
@@ -53,29 +56,48 @@ export default function OrdersScreen() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [updatingTarget, setUpdatingTarget] = useState<'completed' | 'refunded' | 'cancelled' | null>(null);
 
+  // Permission checks
+  const canViewAllOrders = hasPermission('VIEW_ORDERS_ALL');
+  const canViewOwnOrders = hasPermission('VIEW_ORDERS_OWN');
+  const canEditOrders = hasPermission('EDIT_ORDERS');
+  const canDeleteOrders = hasPermission('DELETE_ORDERS');
+  const canUpdateOrderStatus = hasPermission('UPDATE_ORDER_STATUS');
+  const canProcessRefunds = hasPermission('PROCESS_REFUNDS');
+
+  const hasOrderAccess = canViewAllOrders || canViewOwnOrders;
   const isAdmin = profile?.role === 'admin';
 
   useEffect(() => {
-    loadOrders();
-    if (isAdmin) {
+    if (hasOrderAccess) {
+      loadOrders();
+    }
+    if (canViewAllOrders) {
       // loadUsers();
     }
-  }, [user, isAdmin]);
+  }, [user, isAdmin, hasOrderAccess, canViewAllOrders]);
 
   const loadOrders = async () => {
-    // For non-admin users, guard against undefined user.id
-    if (!isAdmin && !user?.id) {
+    // Check if user has permission to access orders
+    if (!hasOrderAccess) {
+      return; // Exit without entering try/catch/finally
+    }
+
+    // For users with only own orders permission, guard against undefined user.id
+    if (canViewOwnOrders && !canViewAllOrders && !user?.id) {
       return; // Exit without entering try/catch/finally
     }
     
     try {
       let result;
       
-      // For non-admin users, only show their own orders
-      if (!isAdmin) {
-        result = await fetchUserOrders(user!.id); // We know user exists because of the guard above
-      } else {
+      // Determine which orders to fetch based on permissions
+      if (canViewAllOrders) {
         result = await fetchAllOrders();
+      } else if (canViewOwnOrders && user?.id) {
+        result = await fetchUserOrders(user.id);
+      } else {
+        // No valid permission combination found
+        return;
       }
 
       if (result.error) throw new Error(result.error);
@@ -174,6 +196,17 @@ export default function OrdersScreen() {
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: 'completed' | 'refunded' | 'cancelled') => {
+    // Check permissions for status update
+    if (newStatus === 'refunded' && !canProcessRefunds) {
+      Alert.alert('Access Denied', 'You do not have permission to process refunds.');
+      return;
+    }
+
+    if (!canUpdateOrderStatus) {
+      Alert.alert('Access Denied', 'You do not have permission to update order status.');
+      return;
+    }
+
     // Get current order to display in confirmation
     const currentOrder = orders.find(order => order.id === orderId);
     const currentStatus = currentOrder?.status || 'unknown';
@@ -212,215 +245,226 @@ export default function OrdersScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Order History</Text>
-      </View>
+      <PermissionGuard
+        permission={['VIEW_ORDERS_ALL', 'VIEW_ORDERS_OWN']}
+        fallback="You don't have permission to view orders."
+        requiresAll={false}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Order History</Text>
+        </View>
 
-      <ScrollView style={styles.content}>
-        {orders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No orders yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              {isAdmin ? 'No orders found' : 'Your completed orders will appear here'}
-            </Text>
-          </View>
-        ) : (
-          orders.map((order) => (
-            <TouchableOpacity
-              key={order.id}
-              style={styles.orderCard}
-              onPress={() => {
-                setSelectedOrder(order);
-                setModalVisible(true);
-              }}>
-              <View style={styles.orderHeader}>
-                <View style={styles.orderHeaderLeft}>
-                  <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
-                  {isAdmin && order.profiles && (
-                    <Text style={styles.userName}>{order.profiles.full_name}</Text>
-                  )}
-                  <View style={styles.orderMetadata}>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        { backgroundColor: getStatusColor(order.status) + '20' },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.statusText,
-                          { color: getStatusColor(order.status) },
-                        ]}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </Text>
-                    </View>
-                    <View style={styles.paymentBadge}>
-                      <Text style={styles.paymentText}>
-                        {getPaymentMethodIcon(order.payment_method)}{' '}
-                        {order.payment_method.charAt(0).toUpperCase() +
-                          order.payment_method.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
-
-      {/* Order Detail Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedOrder && (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Order Details</Text>
-                  <TouchableOpacity onPress={() => setModalVisible(false)}>
-                    <Text style={styles.closeButton}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView style={styles.modalBody}>
-                  <View style={styles.orderInfo}>
-                    <Text style={styles.orderId}>Order #{selectedOrder.id.substring(0, 8)}</Text>
-                    <Text style={styles.orderDateDetail}>{formatDate(selectedOrder.created_at)}</Text>
-                    {isAdmin && selectedOrder.profiles && (
-                      <Text style={styles.userInfo}>
-                        User: {selectedOrder.profiles.full_name} ({selectedOrder.profiles.email})
-                      </Text>
+        <ScrollView style={styles.content}>
+          {orders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No orders yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                {canViewAllOrders ? 'No orders found' : 'Your completed orders will appear here'}
+              </Text>
+            </View>
+          ) : (
+            orders.map((order) => (
+              <TouchableOpacity
+                key={order.id}
+                style={styles.orderCard}
+                onPress={() => {
+                  setSelectedOrder(order);
+                  setModalVisible(true);
+                }}>
+                <View style={styles.orderHeader}>
+                  <View style={styles.orderHeaderLeft}>
+                    <Text style={styles.orderDate}>{formatDate(order.created_at)}</Text>
+                    {canViewAllOrders && order.profiles && (
+                      <Text style={styles.userName}>{order.profiles.full_name}</Text>
                     )}
-                    <View style={styles.statusRow}>
-                      <Text style={styles.statusLabel}>Status:</Text>
+                    <View style={styles.orderMetadata}>
                       <View
                         style={[
                           styles.statusBadge,
-                          { backgroundColor: getStatusColor(selectedOrder.status) + '20' },
+                          { backgroundColor: getStatusColor(order.status) + '20' },
                         ]}>
                         <Text
                           style={[
                             styles.statusText,
-                            { color: getStatusColor(selectedOrder.status) },
+                            { color: getStatusColor(order.status) },
                           ]}>
-                          {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </Text>
+                      </View>
+                      <View style={styles.paymentBadge}>
+                        <Text style={styles.paymentText}>
+                          {getPaymentMethodIcon(order.payment_method)}{' '}
+                          {order.payment_method.charAt(0).toUpperCase() +
+                            order.payment_method.slice(1)}
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.paymentRow}>
-                      <Text style={styles.paymentLabel}>Payment:</Text>
-                      <Text style={styles.paymentValue}>
-                        {getPaymentMethodIcon(selectedOrder.payment_method)}{' '}
-                        {selectedOrder.payment_method.charAt(0).toUpperCase() +
-                          selectedOrder.payment_method.slice(1)}
-                      </Text>
-                    </View>
+                  </View>
+                  <Text style={styles.orderTotal}>{formatPrice(order.total)}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+
+        {/* Order Detail Modal */}
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setModalVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              {selectedOrder && (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>Order Details</Text>
+                    <TouchableOpacity onPress={() => setModalVisible(false)}>
+                      <Text style={styles.closeButton}>✕</Text>
+                    </TouchableOpacity>
                   </View>
 
-                  <View style={styles.itemsSection}>
-                    <Text style={styles.sectionTitle}>Items</Text>
-                    {selectedOrder.order_items.map((item) => (
-                      <View key={item.id} style={styles.orderItem}>
-                        <Text style={styles.orderItemName}>
-                          {item.quantity}x {item.products.name}
+                  <ScrollView style={styles.modalBody}>
+                    <View style={styles.orderInfo}>
+                      <Text style={styles.orderId}>Order #{selectedOrder.id.substring(0, 8)}</Text>
+                      <Text style={styles.orderDateDetail}>{formatDate(selectedOrder.created_at)}</Text>
+                      {canViewAllOrders && selectedOrder.profiles && (
+                        <Text style={styles.userInfo}>
+                          User: {selectedOrder.profiles.full_name} ({selectedOrder.profiles.email})
                         </Text>
-                        <Text style={styles.orderItemPrice}>{formatPrice(item.subtotal)}</Text>
+                      )}
+                      <View style={styles.statusRow}>
+                        <Text style={styles.statusLabel}>Status:</Text>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            { backgroundColor: getStatusColor(selectedOrder.status) + '20' },
+                          ]}>
+                          <Text
+                            style={[
+                              styles.statusText,
+                              { color: getStatusColor(selectedOrder.status) },
+                            ]}>
+                            {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                          </Text>
+                        </View>
                       </View>
-                    ))}
-                  </View>
-
-                  <View style={styles.summarySection}>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Subtotal</Text>
-                      <Text style={styles.summaryValue}>
-                        {formatPrice(selectedOrder.total - selectedOrder.tax)}
-                      </Text>
-                    </View>
-                    <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Tax</Text>
-                      <Text style={styles.summaryValue}>{formatPrice(selectedOrder.tax)}</Text>
-                    </View>
-                    <View style={[styles.summaryRow, styles.totalRow]}>
-                      <Text style={styles.totalLabel}>Total</Text>
-                      <Text style={styles.totalValue}>{formatPrice(selectedOrder.total)}</Text>
-                    </View>
-                  </View>
-
-                  {/* Admin Actions */}
-                  {isAdmin && (
-                    <View style={styles.actionsSection}>
-                      <Text style={styles.sectionTitle}>Admin Actions</Text>
-                      <View style={styles.actionButtons}>
-                        <TouchableOpacity
-                          style={[
-                            styles.actionButton,
-                            selectedOrder.status === 'completed' && styles.actionButtonActive,
-                            selectedOrder.status === 'completed' && styles.actionButtonDisabled,
-                            updatingTarget && styles.actionButtonDisabled,
-                          ]}
-                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}
-                          disabled={selectedOrder.status === 'completed' || updatingTarget !== null}>
-                          <Text
-                            style={[
-                              styles.actionButtonText,
-                              selectedOrder.status === 'completed' && styles.actionButtonTextActive,
-                              selectedOrder.status === 'completed' && styles.actionButtonTextDisabled,
-                              updatingTarget && styles.actionButtonTextDisabled,
-                            ]}>
-                            {updatingTarget === 'completed' ? 'Updating...' : 'Mark Completed'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.actionButton,
-                            selectedOrder.status === 'refunded' && styles.actionButtonActive,
-                            selectedOrder.status === 'refunded' && styles.actionButtonDisabled,
-                            updatingTarget && styles.actionButtonDisabled,
-                          ]}
-                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'refunded')}
-                          disabled={selectedOrder.status === 'refunded' || updatingTarget !== null}>
-                          <Text
-                            style={[
-                              styles.actionButtonText,
-                              selectedOrder.status === 'refunded' && styles.actionButtonTextActive,
-                              selectedOrder.status === 'refunded' && styles.actionButtonTextDisabled,
-                              updatingTarget && styles.actionButtonTextDisabled,
-                            ]}>
-                            {updatingTarget === 'refunded' ? 'Updating...' : 'Mark Refunded'}
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.actionButton,
-                            selectedOrder.status === 'cancelled' && styles.actionButtonActive,
-                            selectedOrder.status === 'cancelled' && styles.actionButtonDisabled,
-                            updatingTarget && styles.actionButtonDisabled,
-                          ]}
-                          onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'cancelled')}
-                          disabled={selectedOrder.status === 'cancelled' || updatingTarget !== null}>
-                          <Text
-                            style={[
-                              styles.actionButtonText,
-                              selectedOrder.status === 'cancelled' && styles.actionButtonTextActive,
-                              selectedOrder.status === 'cancelled' && styles.actionButtonTextDisabled,
-                              updatingTarget && styles.actionButtonTextDisabled,
-                            ]}>
-                            {updatingTarget === 'cancelled' ? 'Updating...' : 'Mark Cancelled'}
-                          </Text>
-                        </TouchableOpacity>
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>Payment:</Text>
+                        <Text style={styles.paymentValue}>
+                          {getPaymentMethodIcon(selectedOrder.payment_method)}{' '}
+                          {selectedOrder.payment_method.charAt(0).toUpperCase() +
+                            selectedOrder.payment_method.slice(1)}
+                        </Text>
                       </View>
                     </View>
-                  )}
-                </ScrollView>
-              </>
-            )}
+
+                    <View style={styles.itemsSection}>
+                      <Text style={styles.sectionTitle}>Items</Text>
+                      {selectedOrder.order_items.map((item) => (
+                        <View key={item.id} style={styles.orderItem}>
+                          <Text style={styles.orderItemName}>
+                            {item.quantity}x {item.products.name}
+                          </Text>
+                          <Text style={styles.orderItemPrice}>{formatPrice(item.subtotal)}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    <View style={styles.summarySection}>
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Subtotal</Text>
+                        <Text style={styles.summaryValue}>
+                          {formatPrice(selectedOrder.total - selectedOrder.tax)}
+                        </Text>
+                      </View>
+                      <View style={styles.summaryRow}>
+                        <Text style={styles.summaryLabel}>Tax</Text>
+                        <Text style={styles.summaryValue}>{formatPrice(selectedOrder.tax)}</Text>
+                      </View>
+                      <View style={[styles.summaryRow, styles.totalRow]}>
+                        <Text style={styles.totalLabel}>Total</Text>
+                        <Text style={styles.totalValue}>{formatPrice(selectedOrder.total)}</Text>
+                      </View>
+                    </View>
+
+                    {/* Permission-based Actions */}
+                    {(canUpdateOrderStatus || canProcessRefunds) && (
+                      <View style={styles.actionsSection}>
+                        <Text style={styles.sectionTitle}>Actions</Text>
+                        <View style={styles.actionButtons}>
+                          {canUpdateOrderStatus && (
+                            <>
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionButton,
+                                  selectedOrder.status === 'completed' && styles.actionButtonActive,
+                                  selectedOrder.status === 'completed' && styles.actionButtonDisabled,
+                                  updatingTarget && styles.actionButtonDisabled,
+                                ]}
+                                onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'completed')}
+                                disabled={selectedOrder.status === 'completed' || updatingTarget !== null}>
+                                <Text
+                                  style={[
+                                    styles.actionButtonText,
+                                    selectedOrder.status === 'completed' && styles.actionButtonTextActive,
+                                    selectedOrder.status === 'completed' && styles.actionButtonTextDisabled,
+                                    updatingTarget && styles.actionButtonTextDisabled,
+                                  ]}>
+                                  {updatingTarget === 'completed' ? 'Updating...' : 'Mark Completed'}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[
+                                  styles.actionButton,
+                                  selectedOrder.status === 'cancelled' && styles.actionButtonActive,
+                                  selectedOrder.status === 'cancelled' && styles.actionButtonDisabled,
+                                  updatingTarget && styles.actionButtonDisabled,
+                                ]}
+                                onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'cancelled')}
+                                disabled={selectedOrder.status === 'cancelled' || updatingTarget !== null}>
+                                <Text
+                                  style={[
+                                    styles.actionButtonText,
+                                    selectedOrder.status === 'cancelled' && styles.actionButtonTextActive,
+                                    selectedOrder.status === 'cancelled' && styles.actionButtonTextDisabled,
+                                    updatingTarget && styles.actionButtonTextDisabled,
+                                  ]}>
+                                  {updatingTarget === 'cancelled' ? 'Updating...' : 'Mark Cancelled'}
+                                </Text>
+                              </TouchableOpacity>
+                            </>
+                          )}
+                          {canProcessRefunds && (
+                            <TouchableOpacity
+                              style={[
+                                styles.actionButton,
+                                selectedOrder.status === 'refunded' && styles.actionButtonActive,
+                                selectedOrder.status === 'refunded' && styles.actionButtonDisabled,
+                                updatingTarget && styles.actionButtonDisabled,
+                              ]}
+                              onPress={() => handleUpdateOrderStatus(selectedOrder.id, 'refunded')}
+                              disabled={selectedOrder.status === 'refunded' || updatingTarget !== null}>
+                              <Text
+                                style={[
+                                  styles.actionButtonText,
+                                  selectedOrder.status === 'refunded' && styles.actionButtonTextActive,
+                                  selectedOrder.status === 'refunded' && styles.actionButtonTextDisabled,
+                                  updatingTarget && styles.actionButtonTextDisabled,
+                                ]}>
+                                {updatingTarget === 'refunded' ? 'Updating...' : 'Mark Refunded'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    )}
+                  </ScrollView>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      </PermissionGuard>
     </SafeAreaView>
   );
 }

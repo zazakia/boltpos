@@ -13,20 +13,21 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
+import {
   fetchAllUsers,
   updateUserProfile,
   toggleUserActiveStatus
 } from '@/services/users.service';
 import RBACService from '@/services/rbac.service';
-import { 
-  User, 
-  Shield, 
-  Edit2, 
-  Key, 
-  Power, 
-  Plus, 
-  Search, 
+import UserCreationInvitation from './UserCreationInvitation';
+import {
+  User,
+  Shield,
+  Edit2,
+  Key,
+  Power,
+  Plus,
+  Search,
   Filter,
   MoreVertical,
   Clock,
@@ -118,6 +119,7 @@ export default function EnhancedUserManagement() {
   const [userDetailModal, setUserDetailModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
+  const [userCreationModal, setUserCreationModal] = useState(false);
   const [inviteModal, setInviteModal] = useState(false);
   const [passwordModal, setPasswordModal] = useState(false);
   
@@ -449,10 +451,10 @@ export default function EnhancedUserManagement() {
           {canCreateUsers && (
             <TouchableOpacity
               style={styles.inviteButton}
-              onPress={() => setInviteModal(true)}
+              onPress={() => setUserCreationModal(true)}
             >
               <Plus size={20} color="#FFFFFF" />
-              <Text style={styles.inviteButtonText}>Invite</Text>
+              <Text style={styles.inviteButtonText}>Create User</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -786,67 +788,28 @@ export default function EnhancedUserManagement() {
         </View>
       </Modal>
 
-      {/* Invite User Modal */}
+      {/* User Creation & Invitation Modal */}
       <Modal
-        visible={inviteModal}
+        visible={userCreationModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setInviteModal(false)}
+        onRequestClose={() => setUserCreationModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Invite New User</Text>
-
-            <View style={styles.form}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                value={inviteData.email}
-                onChangeText={(text) => setInviteData({ ...inviteData, email: text })}
-                placeholder="Enter email address"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                value={inviteData.full_name}
-                onChangeText={(text) => setInviteData({ ...inviteData, full_name: text })}
-                placeholder="Enter full name"
-              />
-
-              <Text style={styles.label}>Department</Text>
-              <TextInput
-                style={styles.input}
-                value={inviteData.department || ''}
-                onChangeText={(text) => setInviteData({ ...inviteData, department: text })}
-                placeholder="Enter department"
-              />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => setInviteModal(false)}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.saveButton}
-                  onPress={async () => {
-                    try {
-                      // TODO: Implement user invitation logic
-                      Alert.alert('Coming Soon', 'User invitation feature will be implemented in Phase 11.5');
-                      setInviteModal(false);
-                    } catch (error: any) {
-                      Alert.alert('Error', error.message || 'Failed to invite user');
-                    }
-                  }}
-                >
-                  <Text style={styles.saveButtonText}>Send Invitation</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <UserCreationInvitation
+              onClose={() => setUserCreationModal(false)}
+              onUserCreated={(user) => {
+                setUserCreationModal(false);
+                Alert.alert('Success', 'User created successfully');
+                loadUsers(); // Refresh the user list
+              }}
+              onUserInvited={(user) => {
+                setUserCreationModal(false);
+                Alert.alert('Success', 'User invitation sent successfully');
+                loadUsers(); // Refresh the user list
+              }}
+            />
           </View>
         </View>
       </Modal>
@@ -1121,8 +1084,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: '90%',
-    maxWidth: 400,
-    maxHeight: '80%',
+    maxWidth: 600,
+    maxHeight: '90%',
   },
   modalTitle: {
     fontSize: 20,
@@ -1177,3 +1140,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  saveButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+});

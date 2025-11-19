@@ -7,18 +7,23 @@ import {
   StyleSheet,
   RefreshControl,
   Dimensions,
+  SafeAreaView,
 } from 'react-native';
 import { BarChart, LineChart, PieChart, Cell, AreaChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { 
-  Package, 
-  ShoppingCart, 
-  TrendingUp, 
-  AlertTriangle, 
+import { usePermissions, PERMISSIONS } from '@/hooks/usePermissions';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import {
+  Package,
+  ShoppingCart,
+  TrendingUp,
+  AlertTriangle,
   Clock,
   DollarSign,
   Users,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Shield,
+  Lock
 } from 'lucide-react-native';
 import { formatPrice } from '@/utils/currency';
 import { dataManagerService } from '@/services/dataManager.service';
@@ -34,6 +39,7 @@ type KPICardData = {
   changeType: 'positive' | 'negative' | 'neutral';
   icon: React.ReactNode;
   color: string;
+  permission?: string;
 };
 
 type ChartData = {
@@ -62,9 +68,11 @@ type ExpiringItem = {
 };
 
 export default function DashboardScreen() {
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [kpiData, setKpiData] = useState<KPICardData[]>([]);
+  const [visibleKPIs, setVisibleKPIs] = useState<KPICardData[]>([]);
   const [salesChartData, setSalesChartData] = useState<ChartData[]>([]);
   const [inventoryChartData, setInventoryChartData] = useState<ChartData[]>([]);
   const [warehouseUtilizationData, setWarehouseUtilizationData] = useState<ChartData[]>([]);
@@ -74,6 +82,14 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  useEffect(() => {
+    // Filter KPIs based on permissions
+    const filteredKPIs = kpiData.filter(kpi =>
+      !kpi.permission || hasPermission(kpi.permission)
+    );
+    setVisibleKPIs(filteredKPIs);
+  }, [kpiData, hasPermission]);
 
   const loadDashboardData = async () => {
     try {
@@ -132,7 +148,8 @@ export default function DashboardScreen() {
           change: '+2.5%',
           changeType: 'positive',
           icon: <Package size={24} color="#3B82F6" />,
-          color: '#3B82F6'
+          color: '#3B82F6',
+          permission: PERMISSIONS.VIEW_PRODUCTS
         },
         {
           title: 'Total Stock Units',
@@ -140,7 +157,8 @@ export default function DashboardScreen() {
           change: '+156',
           changeType: 'positive',
           icon: <TrendingUp size={24} color="#10B981" />,
-          color: '#10B981'
+          color: '#10B981',
+          permission: PERMISSIONS.VIEW_INVENTORY
         },
         {
           title: 'Active Orders',
@@ -148,7 +166,8 @@ export default function DashboardScreen() {
           change: '-12%',
           changeType: 'negative',
           icon: <ShoppingCart size={24} color="#F59E0B" />,
-          color: '#F59E0B'
+          color: '#F59E0B',
+          permission: PERMISSIONS.VIEW_SALES_ORDERS
         },
         {
           title: 'Inventory Value',
@@ -156,7 +175,8 @@ export default function DashboardScreen() {
           change: '+8.2%',
           changeType: 'positive',
           icon: <DollarSign size={24} color="#8B5CF6" />,
-          color: '#8B5CF6'
+          color: '#8B5CF6',
+          permission: PERMISSIONS.VIEW_ACCOUNTING
         },
         {
           title: "Today's POS Sales",
@@ -164,7 +184,8 @@ export default function DashboardScreen() {
           change: formatPrice(todaySalesAmount),
           changeType: 'neutral',
           icon: <DollarSign size={24} color="#06B6D4" />,
-          color: '#06B6D4'
+          color: '#06B6D4',
+          permission: PERMISSIONS.VIEW_POS_REPORTS
         },
         {
           title: 'Active Customers',
@@ -172,7 +193,8 @@ export default function DashboardScreen() {
           change: '+5',
           changeType: 'positive',
           icon: <Users size={24} color="#EF4444" />,
-          color: '#EF4444'
+          color: '#EF4444',
+          permission: PERMISSIONS.VIEW_SALES_ORDERS
         },
         {
           title: 'Active Suppliers',
@@ -180,7 +202,8 @@ export default function DashboardScreen() {
           change: '+1',
           changeType: 'positive',
           icon: <Users size={24} color="#84CC16" />,
-          color: '#84CC16'
+          color: '#84CC16',
+          permission: PERMISSIONS.VIEW_SUPPLIERS
         },
         {
           title: 'Total Warehouses',
@@ -188,7 +211,8 @@ export default function DashboardScreen() {
           change: '+0%',
           changeType: 'neutral',
           icon: <MapPin size={24} color="#F97316" />,
-          color: '#F97316'
+          color: '#F97316',
+          permission: PERMISSIONS.VIEW_WAREHOUSES
         }
       ]);
 
@@ -316,7 +340,7 @@ export default function DashboardScreen() {
     loadDashboardData();
   };
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <RefreshCw size={32} color="#3B82F6" />
@@ -326,166 +350,199 @@ export default function DashboardScreen() {
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
-      }
-    >
-      {/* KPI Cards Grid */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Key Performance Indicators</Text>
-        <View style={styles.kpiGrid}>
-          {kpiData.map((kpi, index) => (
-            <TouchableOpacity key={index} style={[styles.kpiCard, { borderLeftColor: kpi.color }]}>
-              <View style={styles.kpiHeader}>
-                {kpi.icon}
-                <Text style={styles.kpiTitle}>{kpi.title}</Text>
+    <SafeAreaView style={styles.container}>
+      <PermissionGuard permissions={[PERMISSIONS.VIEW_DASHBOARD]} fallback={
+        <View style={styles.accessDenied}>
+          <Shield size={48} color="#EF4444" />
+          <Text style={styles.accessDeniedText}>Access Denied</Text>
+          <Text style={styles.accessDeniedSubtext}>
+            You don't have permission to view the dashboard
+          </Text>
+        </View>
+      }>
+        <ScrollView
+          style={styles.container}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+          }
+        >
+          {/* KPI Cards Grid */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Key Performance Indicators</Text>
+            {visibleKPIs.length === 0 ? (
+              <View style={styles.noDataMessage}>
+                <Lock size={32} color="#9CA3AF" />
+                <Text style={styles.noDataText}>No KPI data available</Text>
+                <Text style={styles.noDataSubtext}>Contact administrator for dashboard permissions</Text>
               </View>
-              <Text style={styles.kpiValue}>{kpi.value}</Text>
-              <Text style={[
-                styles.kpiChange,
-                kpi.changeType === 'positive' && styles.kpiChangePositive,
-                kpi.changeType === 'negative' && styles.kpiChangeNegative,
-                kpi.changeType === 'neutral' && styles.kpiChangeNeutral
-              ]}>
-                {kpi.change}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Charts Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Analytics & Trends</Text>
-        
-        {/* Sales Chart */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Weekly Sales Trend (₱)</Text>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={salesChartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(value) => `₱${value.toLocaleString()}`} />
-              <Tooltip 
-                formatter={(value: any) => [formatPrice(value), 'Sales']}
-                labelStyle={{ color: '#374151' }}
-                contentStyle={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="sales" 
-                stroke="#3B82F6" 
-                fill="#3B82F6" 
-                fillOpacity={0.3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </View>
-
-        {/* Inventory Distribution Chart */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Stock Distribution by Category</Text>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={inventoryChartData}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                dataKey="value"
-                label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
-                fontSize={10}
-              >
-                {inventoryChartData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'][index % 6]} 
-                  />
+            ) : (
+              <View style={styles.kpiGrid}>
+                {visibleKPIs.map((kpi, index) => (
+                  <TouchableOpacity key={index} style={[styles.kpiCard, { borderLeftColor: kpi.color }]}>
+                    <View style={styles.kpiHeader}>
+                      {kpi.icon}
+                      <Text style={styles.kpiTitle}>{kpi.title}</Text>
+                    </View>
+                    <Text style={styles.kpiValue}>{kpi.value}</Text>
+                    <Text style={[
+                      styles.kpiChange,
+                      kpi.changeType === 'positive' && styles.kpiChangePositive,
+                      kpi.changeType === 'negative' && styles.kpiChangeNegative,
+                      kpi.changeType === 'neutral' && styles.kpiChangeNeutral
+                    ]}>
+                      {kpi.change}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
-              </Pie>
-              <Tooltip formatter={(value: any) => [value.toLocaleString(), 'Units']} />
-            </PieChart>
-          </ResponsiveContainer>
-        </View>
-
-        {/* Warehouse Utilization Chart */}
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Warehouse Utilization (%)</Text>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={warehouseUtilizationData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} />
-              <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} />
-              <Tooltip 
-                formatter={(value: any) => [`${value}%`, 'Utilization']}
-                contentStyle={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
-              />
-              <Bar 
-                dataKey="value" 
-                fill="#10B981"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </View>
-      </View>
-
-      {/* Alerts Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Alerts & Monitoring</Text>
-        
-        {/* Low Stock Alert */}
-        {lowStockItems.length > 0 && (
-          <View style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <AlertTriangle size={20} color="#F59E0B" />
-              <Text style={styles.alertTitle}>Low Stock Alerts ({lowStockItems.length})</Text>
-            </View>
-            {lowStockItems.map((item) => (
-              <View key={item.id} style={styles.alertItem}>
-                <Text style={styles.alertItemName}>{item.name}</Text>
-                <Text style={styles.alertItemDetail}>
-                  Current: {item.currentStock} | Min: {item.minStock} | Shortage: {item.shortage}
-                </Text>
               </View>
-            ))}
+            )}
           </View>
-        )}
 
-        {/* Expiring Items Alert */}
-        {expiringItems.length > 0 && (
-          <View style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <Clock size={20} color="#EF4444" />
-              <Text style={styles.alertTitle}>Items Expiring Soon ({expiringItems.length})</Text>
-            </View>
-            {expiringItems.map((item) => (
-              <View key={item.id} style={styles.alertItem}>
-                <Text style={styles.alertItemName}>{item.name}</Text>
-                <Text style={styles.alertItemDetail}>
-                  Batch: {item.batchNumber} | Expires in: {item.daysLeft} days | Qty: {item.quantity}
-                </Text>
+          {/* Charts Section */}
+          <PermissionGuard permissions={[PERMISSIONS.VIEW_ANALYTICS]} fallback={
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Analytics & Trends</Text>
+              <View style={styles.noDataMessage}>
+                <Lock size={32} color="#9CA3AF" />
+                <Text style={styles.noDataText}>Analytics Not Available</Text>
+                <Text style={styles.noDataSubtext}>Contact administrator for analytics permissions</Text>
               </View>
-            ))}
-          </View>
-        )}
-
-        {lowStockItems.length === 0 && expiringItems.length === 0 && (
-          <View style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <Package size={20} color="#10B981" />
-              <Text style={styles.alertTitle}>All Good!</Text>
             </View>
-            <Text style={styles.alertItemDetail}>
-              No low stock or expiring items at the moment.
-            </Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          }>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Analytics & Trends</Text>
+              
+              {/* Sales Chart */}
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Weekly Sales Trend (₱)</Text>
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={salesChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} />
+                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(value) => `₱${value.toLocaleString()}`} />
+                    <Tooltip
+                      formatter={(value: any) => [formatPrice(value), 'Sales']}
+                      labelStyle={{ color: '#374151' }}
+                      contentStyle={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="sales"
+                      stroke="#3B82F6"
+                      fill="#3B82F6"
+                      fillOpacity={0.3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </View>
+
+              {/* Inventory Distribution Chart */}
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Stock Distribution by Category</Text>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={inventoryChartData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      labelLine={false}
+                      fontSize={10}
+                    >
+                      {inventoryChartData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'][index % 6]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: any) => [value.toLocaleString(), 'Units']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </View>
+
+              {/* Warehouse Utilization Chart */}
+              <View style={styles.chartCard}>
+                <Text style={styles.chartTitle}>Warehouse Utilization (%)</Text>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={warehouseUtilizationData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#6B7280' }} />
+                    <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} />
+                    <Tooltip
+                      formatter={(value: any) => [`${value}%`, 'Utilization']}
+                      contentStyle={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="#10B981"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </View>
+            </View>
+          </PermissionGuard>
+
+          {/* Alerts Section */}
+          <PermissionGuard permissions={[PERMISSIONS.VIEW_DASHBOARD_ALERTS]}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Alerts & Monitoring</Text>
+              
+              {/* Low Stock Alert */}
+              {lowStockItems.length > 0 && (
+                <View style={styles.alertCard}>
+                  <View style={styles.alertHeader}>
+                    <AlertTriangle size={20} color="#F59E0B" />
+                    <Text style={styles.alertTitle}>Low Stock Alerts ({lowStockItems.length})</Text>
+                  </View>
+                  {lowStockItems.map((item) => (
+                    <View key={item.id} style={styles.alertItem}>
+                      <Text style={styles.alertItemName}>{item.name}</Text>
+                      <Text style={styles.alertItemDetail}>
+                        Current: {item.currentStock} | Min: {item.minStock} | Shortage: {item.shortage}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Expiring Items Alert */}
+              {expiringItems.length > 0 && (
+                <View style={styles.alertCard}>
+                  <View style={styles.alertHeader}>
+                    <Clock size={20} color="#EF4444" />
+                    <Text style={styles.alertTitle}>Items Expiring Soon ({expiringItems.length})</Text>
+                  </View>
+                  {expiringItems.map((item) => (
+                    <View key={item.id} style={styles.alertItem}>
+                      <Text style={styles.alertItemName}>{item.name}</Text>
+                      <Text style={styles.alertItemDetail}>
+                        Batch: {item.batchNumber} | Expires in: {item.daysLeft} days | Qty: {item.quantity}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {lowStockItems.length === 0 && expiringItems.length === 0 && (
+                <View style={styles.alertCard}>
+                  <View style={styles.alertHeader}>
+                    <Package size={20} color="#10B981" />
+                    <Text style={styles.alertTitle}>All Good!</Text>
+                  </View>
+                  <Text style={styles.alertItemDetail}>
+                    No low stock or expiring items at the moment.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </PermissionGuard>
+        </ScrollView>
+      </PermissionGuard>
+    </SafeAreaView>
   );
 }
 
@@ -621,5 +678,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginTop: 2,
+  },
+  accessDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  accessDeniedText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  accessDeniedSubtext: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  noDataMessage: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  noDataText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });

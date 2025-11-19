@@ -38,17 +38,27 @@ export const signUpUser = async (email: string, password: string, fullName: stri
     }
 
     if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        email: data.user.email!,
-        full_name: fullName,
-        role: 'staff',
-      });
+      // Note: Profile should be automatically created by database trigger
+      // This is a fallback in case the trigger fails or doesn't exist yet
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: data.user.id,
+          email: data.user.email!,
+          full_name: fullName,
+          role: 'staff',
+          active: true,
+        })
+        .select()
+        .single();
 
-      if (profileError) {
+      // Ignore duplicate key errors (profile already created by trigger)
+      if (profileError && !profileError.message.includes('duplicate key')) {
         console.error('auth.service: Error creating profile:', profileError);
         return { data: null, error: getErrorMessage(profileError) };
       }
+
+      console.log('auth.service: Profile created or already exists');
     }
 
     console.log('auth.service: User signed up successfully');

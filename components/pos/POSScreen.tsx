@@ -13,9 +13,12 @@ import {
   TextInput,
 } from 'react-native';
 import { Product, POSSale, POSSaleItem, SalesOrder } from '@/types/inventory';
+import { usePermissions, PERMISSIONS } from '@/hooks/usePermissions';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { dataManagerService } from '@/services/dataManager.service';
 import { InventoryFIFOService } from '@/services/inventoryFIFO.service';
 import { currencyUtils } from '@/utils/inventoryUtils';
+import { Shield, Lock } from 'lucide-react-native';
 import { POSProductGrid } from './POSProductGrid';
 import { POSShoppingCart } from './POSShoppingCart';
 import { POSPaymentModal } from './POSPaymentModal';
@@ -25,7 +28,7 @@ import { POSSummaryCard } from './POSSummaryCard';
 const { width } = Dimensions.get('window');
 
 export const POSScreen: React.FC = () => {
-  // State management
+  const { hasPermission, loading: permissionsLoading } = usePermissions();
   const [products, setProducts] = useState<Product[]>([]);
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
   const [cartItems, setCartItems] = useState<POSSaleItem[]>([]);
@@ -42,7 +45,12 @@ export const POSScreen: React.FC = () => {
     averageTransactionValue: 0,
   });
 
-  // Load initial data
+  // Permission checks
+  const canViewPOS = hasPermission(PERMISSIONS.VIEW_POS_REPORTS);
+  const canProcessSales = hasPermission(PERMISSIONS.PROCESS_SALES);
+  const canViewInventory = hasPermission(PERMISSIONS.VIEW_INVENTORY);
+  const canEditInventory = hasPermission(PERMISSIONS.MANAGE_INVENTORY);
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -50,6 +58,12 @@ export const POSScreen: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      
+      // Only load data if user has permission to view POS
+      if (!canViewPOS) {
+        setLoading(false);
+        return;
+      }
       
       // Load products, sales orders, and today's stats in parallel
       const [productsResult, salesOrdersResult, dashboardResult, posSalesResult] = await Promise.all([
@@ -106,6 +120,12 @@ export const POSScreen: React.FC = () => {
 
   // Cart management
   const addToCart = (product: Product, quantity: number = 1, uom: string = 'piece') => {
+    // Check permission before allowing cart operations
+    if (!canProcessSales) {
+      Alert.alert('Access Denied', 'You do not have permission to process POS sales');
+      return;
+    }
+
     const existingItemIndex = cartItems.findIndex(
       item => item.productId === product.id && item.uom === uom
     );
@@ -135,6 +155,12 @@ export const POSScreen: React.FC = () => {
   };
 
   const removeFromCart = (productId: string, uom: string) => {
+    // Check permission before allowing cart modifications
+    if (!canProcessSales) {
+      Alert.alert('Access Denied', 'You do not have permission to modify cart');
+      return;
+    }
+    
     setCartItems(cartItems.filter(item => !(item.productId === productId && item.uom === uom)));
   };
 
@@ -191,6 +217,17 @@ export const POSScreen: React.FC = () => {
 
   const processSale = async (sale: POSSale) => {
     try {
+      // Check permissions before processing sale
+      if (!canProcessSales) {
+        Alert.alert('Access Denied', 'You do not have permission to process POS sales');
+        return;
+      }
+
+      if (!canEditInventory) {
+        Alert.alert('Access Denied', 'You do not have permission to update inventory');
+        return;
+      }
+      
       // Update inventory using FIFO logic
       await updateInventoryForSale(sale);
       
@@ -597,5 +634,44 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  accessDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  accessDeniedText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  accessDeniedSubtext: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  noDataMessage: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    margin: 16,
+  },
+  noDataText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noDataSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
 });
