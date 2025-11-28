@@ -1,0 +1,442 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Enums
+enum Role {
+  admin
+  staff
+}
+
+enum OrderStatus {
+  completed
+  refunded
+  cancelled
+}
+
+enum PaymentMethod {
+  cash
+  card
+  mobile
+}
+
+enum WarehouseStatus {
+  active
+  inactive
+  maintenance
+}
+
+enum InventoryItemStatus {
+  active
+  expired
+  damaged
+}
+
+enum SupplierStatus {
+  active
+  inactive
+}
+
+enum PaymentTerm {
+  Net_15 @map("Net 15")
+  Net_30 @map("Net 30")
+  Net_60 @map("Net 60")
+  COD
+}
+
+enum PurchaseOrderStatus {
+  draft
+  pending
+  ordered
+  received
+  cancelled
+}
+
+enum AlertType {
+  low_stock
+  expiring_soon
+  expired
+  warehouse_full
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum AlertEntityType {
+  product
+  inventory
+  warehouse
+}
+
+enum AlertStatus {
+  active
+  dismissed
+}
+
+enum StockMovementType {
+  purchase
+  sale
+  transfer
+  adjustment
+  expired
+}
+
+enum ExpenseStatus {
+  pending
+  paid
+  cancelled
+}
+
+enum AccountStatus {
+  outstanding
+  paid
+  overdue
+}
+
+enum SalesOrderStatus {
+  pending
+  converted
+}
+
+// Models
+
+model Profile {
+  id        String   @id @db.Uuid // Links to auth.users
+  email     String
+  full_name String?
+  role      Role     @default(staff)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  orders              Order[]
+  created_pos         PurchaseOrder[]
+  dismissed_alerts    Alert[]
+  stock_movements     StockMovement[]
+  created_expenses    Expense[]
+  paid_payables       AccountsPayable[]
+  paid_receivables    AccountsReceivable[]
+
+  @@map("profiles")
+}
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  color     String?  @default("#3B82F6")
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  price           Decimal  @default(0) @db.Decimal(10, 2)
+  category_id     String?  @db.Uuid
+  image_url       String?
+  stock           Int      @default(0)
+  active          Boolean? @default(true)
+  description     String?
+  base_uom        String?  @default("bottle")
+  min_stock_level Int?     @default(0)
+  shelf_life      Int?     @default(365)
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  category            Category?             @relation(fields: [category_id], references: [id])
+  order_items         OrderItem[]
+  alternate_uoms      AlternateUom[]
+  inventory_items     InventoryItem[]
+  purchase_order_items PurchaseOrderItem[]
+  stock_movements     StockMovement[]
+
+  @@index([category_id])
+  @@index([active])
+  @@map("products")
+}
+
+model AlternateUom {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  product_id        String   @db.Uuid
+  name              String
+  quantity          Int
+  conversion_factor Decimal  @db.Decimal(10, 2)
+  price             Decimal  @db.Decimal(10, 2)
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  product           Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@map("alternate_uoms")
+}
+
+model Order {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String        @db.Uuid
+  total               Decimal       @default(0) @db.Decimal(10, 2)
+  tax                 Decimal?      @default(0) @db.Decimal(10, 2)
+  status              OrderStatus?  @default(completed)
+  payment_method      PaymentMethod? @default(cash)
+  customer_name       String?
+  customer_phone      String?
+  customer_email      String?
+  delivery_address    String?
+  warehouse_id        String?       @db.Uuid
+  delivery_date       DateTime?     @db.Timestamptz
+  sales_order_status  SalesOrderStatus? @default(pending)
+  created_at          DateTime      @default(now()) @db.Timestamptz
+
+  // Relations
+  user                Profile       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  warehouse           Warehouse?    @relation(fields: [warehouse_id], references: [id])
+  items               OrderItem[]
+  accounts_receivable AccountsReceivable[]
+
+  @@index([user_id, status])
+  @@index([created_at])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_id     String   @db.Uuid
+  product_id   String   @db.Uuid
+  quantity     Int      @default(1)
+  price        Decimal  @db.Decimal(10, 2)
+  subtotal     Decimal  @db.Decimal(10, 2)
+  warehouse_id String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  // Relations
+  order        Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  warehouse    Warehouse? @relation(fields: [warehouse_id], references: [id])
+
+  @@map("order_items")
+}
+
+model Warehouse {
+  id                  String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                String
+  location            String
+  manager             String
+  capacity            Int             @default(1000)
+  current_utilization Int?            @default(0)
+  status              WarehouseStatus? @default(active)
+  created_at          DateTime        @default(now()) @db.Timestamptz
+  updated_at          DateTime        @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  inventory_items     InventoryItem[]
+  orders              Order[]
+  order_items         OrderItem[]
+  stock_movements     StockMovement[]
+
+  @@map("warehouses")
+}
+
+model InventoryItem {
+  id             String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  product_id     String              @db.Uuid
+  warehouse_id   String              @db.Uuid
+  batch_number   String
+  quantity       Int                 @default(0)
+  unit_cost      Decimal             @db.Decimal(10, 2)
+  expiry_date    DateTime?           @db.Timestamptz
+  received_date  DateTime?           @default(now()) @db.Timestamptz
+  status         InventoryItemStatus? @default(active)
+  created_at     DateTime            @default(now()) @db.Timestamptz
+  updated_at     DateTime            @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  product        Product             @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  warehouse      Warehouse           @relation(fields: [warehouse_id], references: [id], onDelete: Cascade)
+  stock_movements StockMovement[]
+
+  @@unique([batch_number, product_id, warehouse_id])
+  @@index([product_id, warehouse_id])
+  @@index([expiry_date])
+  @@index([status])
+  @@map("inventory_items")
+}
+
+model Supplier {
+  id             String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  company_name   String
+  contact_person String
+  phone          String
+  email          String?
+  payment_terms  PaymentTerm?    @default(Net_30)
+  address        String?
+  status         SupplierStatus? @default(active)
+  created_at     DateTime        @default(now()) @db.Timestamptz
+  updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  purchase_orders  PurchaseOrder[]
+  expenses         Expense[]
+  accounts_payable AccountsPayable[]
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id                    String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  po_number             String              @unique
+  supplier_id           String              @db.Uuid
+  status                PurchaseOrderStatus? @default(draft)
+  total_amount          Decimal?            @default(0) @db.Decimal(10, 2)
+  expected_delivery_date DateTime?          @db.Timestamptz
+  actual_delivery_date   DateTime?          @db.Timestamptz
+  notes                 String?
+  created_by            String?             @db.Uuid
+  created_at            DateTime            @default(now()) @db.Timestamptz
+  updated_at            DateTime            @default(now()) @updatedAt @db.Timestamptz
+
+  // Relations
+  supplier              Supplier            @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+  creator               Profile?            @relation(fields: [created_by], references: [id])
+  items                 PurchaseOrderItem[]
+  accounts_payable      AccountsPayable[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  purchase_order_id String        @db.Uuid
+  product_id        String        @db.Uuid
+  quantity          Int
+  unit_price        Decimal       @db.Decimal(10, 2)
+  subtotal          Decimal?      @db.Decimal(10, 2) // Generated column in DB, but we can map it or manage it manually
+  received_quantity Int?          @default(0)
+  created_at        DateTime      @default(now()) @db.Timestamptz
+
+  // Relations
+  purchase_order    PurchaseOrder @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  product           Product       @relation(fields: [product_id], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+model Alert {
+  id           String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type         AlertType
+  severity     AlertSeverity
+  title        String
+  message      String
+  entity_type  AlertEntityType
+  entity_id    String
+  status       AlertStatus?    @default(active)
+  created_at   DateTime        @default(now()) @db.Timestamptz
+  dismissed_at DateTime?       @db.Timestamptz
+  dismissed_by String?         @db.Uuid
+
+  // Relations
+  dismissed_user Profile?      @relation(fields: [dismissed_by], references: [id])
+
+  @@index([status])
+  @@index([type])
+  @@map("alerts")
+}
+
+model StockMovement {
+  id           String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  product_id   String            @db.Uuid
+  warehouse_id String            @db.Uuid
+  type         StockMovementType
+  batch_id     String?           @db.Uuid
+  quantity     Int
+  reason       String?
+  reference_id String?
+  unit_cost    Decimal?          @db.Decimal(10, 2)
+  created_at   DateTime          @default(now()) @db.Timestamptz
+  created_by   String?           @db.Uuid
+
+  // Relations
+  product      Product           @relation(fields: [product_id], references: [id])
+  warehouse    Warehouse         @relation(fields: [warehouse_id], references: [id])
+  batch        InventoryItem?    @relation(fields: [batch_id], references: [id])
+  creator      Profile?          @relation(fields: [created_by], references: [id])
+
+  @@index([product_id])
+  @@index([created_at])
+  @@map("stock_movements")
+}
+
+model Expense {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  description    String
+  category       String
+  amount         Decimal       @db.Decimal(10, 2)
+  vendor_id      String?       @db.Uuid
+  expense_date   DateTime?     @default(now()) @db.Timestamptz
+  status         ExpenseStatus? @default(pending)
+  receipt_number String?
+  notes          String?
+  created_at     DateTime      @default(now()) @db.Timestamptz
+  created_by     String?       @db.Uuid
+
+  // Relations
+  vendor         Supplier?     @relation(fields: [vendor_id], references: [id])
+  creator        Profile?      @relation(fields: [created_by], references: [id])
+
+  @@map("expenses")
+}
+
+model AccountsPayable {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  vendor_id      String        @db.Uuid
+  amount         Decimal       @db.Decimal(10, 2)
+  due_date       DateTime      @db.Timestamptz
+  status         AccountStatus? @default(outstanding)
+  description    String
+  po_id          String?       @db.Uuid
+  invoice_number String?
+  created_at     DateTime      @default(now()) @db.Timestamptz
+  paid_at        DateTime?     @db.Timestamptz
+  paid_by        String?       @db.Uuid
+
+  // Relations
+  vendor         Supplier      @relation(fields: [vendor_id], references: [id])
+  purchase_order PurchaseOrder? @relation(fields: [po_id], references: [id])
+  payer          Profile?      @relation(fields: [paid_by], references: [id])
+
+  @@map("accounts_payable")
+}
+
+model AccountsReceivable {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customer_name  String
+  customer_phone String?
+  customer_email String?
+  amount         Decimal       @db.Decimal(10, 2)
+  due_date       DateTime      @db.Timestamptz
+  status         AccountStatus? @default(outstanding)
+  description    String
+  sale_id        String?       @db.Uuid
+  invoice_number String?
+  created_at     DateTime      @default(now()) @db.Timestamptz
+  paid_at        DateTime?     @db.Timestamptz
+  paid_by        String?       @db.Uuid
+
+  // Relations
+  sale           Order?        @relation(fields: [sale_id], references: [id])
+  payer          Profile?      @relation(fields: [paid_by], references: [id])
+
+  @@map("accounts_receivable")
+}

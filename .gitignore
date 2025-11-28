@@ -36,3 +36,5 @@ yarn-error.*
 
 # Local Netlify folder
 .netlify
+
+/lib/generated/prisma

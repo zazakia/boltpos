@@ -22,7 +22,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "single",
+      "output": "server",
       "favicon": "./assets/images/favicon.png",
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://fuvtlstscqnizcxpuxel.supabase.co",
